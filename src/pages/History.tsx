@@ -16,7 +16,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { FileText, MoreHorizontal, Trash2, Printer, Search } from 'lucide-react'
+import {
+  FileText,
+  MoreHorizontal,
+  Trash2,
+  Download,
+  ExternalLink,
+} from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -105,14 +111,35 @@ export default function History() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() =>
-                          window.open(`/print/${proposal.id}`, '_blank')
-                        }
-                      >
-                        <Printer className="mr-2 h-4 w-4" />
-                        Imprimir / Baixar PDF
-                      </DropdownMenuItem>
+                      {proposal.pdfUrl ? (
+                        <DropdownMenuItem
+                          onClick={() => window.open(proposal.pdfUrl, '_blank')}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Baixar PDF
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onClick={() =>
+                            window.open(`/print/${proposal.id}`, '_blank')
+                          }
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Imprimir (Local)
+                        </DropdownMenuItem>
+                      )}
+
+                      {proposal.gammaUrl && (
+                        <DropdownMenuItem
+                          onClick={() =>
+                            window.open(proposal.gammaUrl, '_blank')
+                          }
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Ver Online
+                        </DropdownMenuItem>
+                      )}
+
                       <DropdownMenuItem
                         onClick={() => handleDelete(proposal.id)}
                         className="text-destructive focus:text-destructive"

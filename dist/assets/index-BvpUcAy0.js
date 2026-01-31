@@ -18944,6 +18944,28 @@ var ChevronRight = createLucideIcon("chevron-right", [["path", {
 	d: "m9 18 6-6-6-6",
 	key: "mthhwq"
 }]]);
+var CircleAlert = createLucideIcon("circle-alert", [
+	["circle", {
+		cx: "12",
+		cy: "12",
+		r: "10",
+		key: "1mglay"
+	}],
+	["line", {
+		x1: "12",
+		x2: "12",
+		y1: "8",
+		y2: "12",
+		key: "1pkeuh"
+	}],
+	["line", {
+		x1: "12",
+		x2: "12.01",
+		y1: "16",
+		y2: "16",
+		key: "4dfq90"
+	}]
+]);
 var CircleCheck = createLucideIcon("circle-check", [["circle", {
 	cx: "12",
 	cy: "12",
@@ -19074,24 +19096,6 @@ var PanelLeft = createLucideIcon("panel-left", [["rect", {
 	d: "M9 3v18",
 	key: "fh3hqa"
 }]]);
-var Printer = createLucideIcon("printer", [
-	["path", {
-		d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2",
-		key: "143wyd"
-	}],
-	["path", {
-		d: "M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6",
-		key: "1itne7"
-	}],
-	["rect", {
-		x: "6",
-		y: "14",
-		width: "12",
-		height: "8",
-		rx: "1",
-		key: "1ue0tg"
-	}]
-]);
 var RefreshCw = createLucideIcon("refresh-cw", [
 	["path", {
 		d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8",
@@ -20592,9 +20596,6 @@ function formatCurrency(value) {
 }
 function generateId() {
 	return Math.random().toString(36).substring(2, 9);
-}
-function generateUUID() {
-	return "gen-" + Math.random().toString(16).substring(2, 6) + "-" + Math.random().toString(16).substring(2, 6);
 }
 var ToastProvider = Provider$1;
 var ToastViewport = import_react.forwardRef(({ className, ...props }, ref) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Viewport, {
@@ -35311,241 +35312,187 @@ function ProposalForm({ form, onSubmit }) {
 		})
 	});
 }
+async function triggerGammaGeneration(data) {
+	throw new Error("API Key configuration missing");
+}
+async function checkGammaStatus(generationId) {
+	throw new Error("API Key configuration missing");
+}
 function ProposalProcessing({ data, onComplete }) {
-	const [step, setStep] = (0, import_react.useState)(0);
+	const [currentStep, setCurrentStep] = (0, import_react.useState)(0);
+	const [error, setError] = (0, import_react.useState)(null);
+	const [logs, setLogs] = (0, import_react.useState)([]);
+	const pollingRef = (0, import_react.useRef)(null);
 	const steps = [
 		{
 			label: "Validando dados...",
-			duration: 800
+			key: "validating"
 		},
 		{
 			label: "Enviando para Gamma API...",
-			duration: 1200
+			key: "sending"
 		},
 		{
-			label: "Gerando layout PDF...",
-			duration: 1800
+			label: "Gerando documento...",
+			key: "generating"
 		},
 		{
-			label: "Finalizando documento...",
-			duration: 600
+			label: "Finalizando...",
+			key: "finalizing"
 		}
 	];
+	const addLog = (msg, color = "text-slate-400") => {
+		setLogs((prev) => [...prev, `<span class="${color}">${msg}</span>`]);
+	};
 	(0, import_react.useEffect)(() => {
-		let currentStep = 0;
-		let timeoutId;
-		const runStep = () => {
-			if (currentStep >= steps.length) {
-				onComplete();
-				return;
+		let isMounted = true;
+		const process$2 = async () => {
+			try {
+				addLog("> Starting validation...", "text-yellow-300");
+				await new Promise((r$2) => setTimeout(r$2, 800));
+				if (!isMounted) return;
+				setCurrentStep(1);
+				addLog("> Validation successful", "text-green-400");
+				addLog("> Initializing Gamma API connection...", "text-blue-300");
+				addLog(`> Template ID: j4euglofm0z6e7e`, "text-slate-500");
+				const generationId = (await triggerGammaGeneration(data)).id;
+				if (!isMounted) return;
+				setCurrentStep(2);
+				addLog(`> Generation started: ${generationId}`, "text-purple-300");
+				addLog("> Waiting for PDF rendering...", "text-purple-300");
+				const poll = async () => {
+					try {
+						const statusResponse = await checkGammaStatus(generationId);
+						const status = statusResponse.status;
+						if (status === "COMPLETED") {
+							if (!isMounted) return;
+							setCurrentStep(3);
+							addLog("> Generation completed successfully!", "text-green-400");
+							addLog(`> PDF URL: ${statusResponse.output?.pdf?.url?.substring(0, 40)}...`, "text-slate-500");
+							setTimeout(() => {
+								onComplete({
+									generationId,
+									pdfUrl: statusResponse.output?.pdf?.url,
+									gammaUrl: statusResponse.output?.gamma?.url
+								});
+							}, 1e3);
+						} else if (status === "ERROR" || status === "FAILED") throw new Error("Gamma generation failed");
+						else if (isMounted) {
+							addLog(`> Status: ${status} - Polling...`, "text-slate-500");
+							pollingRef.current = setTimeout(poll, 2e3);
+						}
+					} catch (err) {
+						console.error(err);
+						if (isMounted) {
+							setError("Erro ao verificar status da geração.");
+							addLog("> Error polling status", "text-red-500");
+						}
+					}
+				};
+				poll();
+			} catch (err) {
+				console.error(err);
+				if (isMounted) {
+					setError(err.message || "Ocorreu um erro inesperado.");
+					addLog(`> Error: ${err.message}`, "text-red-500");
+					toast.error("Falha na geração da proposta");
+				}
 			}
-			timeoutId = setTimeout(() => {
-				setStep((prev) => prev + 1);
-				currentStep++;
-				runStep();
-			}, steps[currentStep].duration);
 		};
-		runStep();
-		return () => clearTimeout(timeoutId);
+		process$2();
+		return () => {
+			isMounted = false;
+			if (pollingRef.current) clearTimeout(pollingRef.current);
+		};
 	}, []);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "flex flex-col md:flex-row gap-8 h-[600px] animate-in fade-in duration-500",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "flex-1 bg-white p-8 rounded-xl shadow-sm border flex flex-col justify-center items-center md:items-start",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "mb-8 text-center md:text-left",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-					className: "text-2xl font-bold text-slate-800",
-					children: "Processando Proposta"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "text-slate-500",
-					children: "Aguarde enquanto nossa IA gera seu documento."
-				})]
-			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "space-y-6 w-full max-w-sm",
-				children: steps.map((s$2, index$1) => {
-					const isActive = index$1 === step;
-					const isCompleted = index$1 < step;
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: cn("h-8 w-8 rounded-full flex items-center justify-center transition-all duration-500", isCompleted ? "bg-emerald-100 text-emerald-600 scale-110" : isActive ? "bg-primary/10 text-primary scale-110" : "bg-slate-100 text-slate-300"),
-							children: isCompleted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "h-5 w-5" }) : isActive ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "h-5 w-5 animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Circle, { className: "h-5 w-5" })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "flex-1",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: cn("font-medium transition-colors duration-300", isCompleted ? "text-emerald-700" : isActive ? "text-primary" : "text-slate-400"),
-								children: s$2.label
-							})
-						})]
-					}, index$1);
-				})
-			})]
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "flex-1 bg-slate-900 rounded-xl p-6 font-mono text-xs text-green-400 overflow-hidden relative shadow-2xl",
+			className: "flex-1 bg-white p-8 rounded-xl shadow-sm border flex flex-col justify-center items-center md:items-start relative overflow-hidden",
 			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50 animate-pulse" }),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex justify-between items-center mb-4 border-b border-slate-700 pb-2",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-slate-400",
-						children: "gamma-api-log.json"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "px-2 py-0.5 rounded bg-slate-800 text-slate-300",
-						children: "v2.1.0"
+				error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "absolute top-0 left-0 w-full bg-red-50 p-4 border-b border-red-100 flex items-center gap-2 text-red-700 animate-in slide-in-from-top",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "h-5 w-5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-sm font-medium",
+						children: error
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "space-y-2 opacity-90",
+					className: "mb-8 text-center md:text-left mt-8 md:mt-0",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+						className: "text-2xl font-bold text-slate-800",
+						children: "Processando Proposta"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+						className: "text-slate-500",
+						children: "Integração Gamma AI v1.0 em andamento."
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "space-y-6 w-full max-w-sm",
+					children: steps.map((s$2, index$1) => {
+						const isActive = index$1 === currentStep && !error;
+						const isCompleted = index$1 < currentStep;
+						const isError = index$1 === currentStep && error;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-4",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: cn("h-8 w-8 rounded-full flex items-center justify-center transition-all duration-500", isCompleted ? "bg-emerald-100 text-emerald-600 scale-110" : isError ? "bg-red-100 text-red-600" : isActive ? "bg-primary/10 text-primary scale-110" : "bg-slate-100 text-slate-300"),
+								children: isCompleted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "h-5 w-5" }) : isError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "h-5 w-5" }) : isActive ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "h-5 w-5 animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Circle, { className: "h-5 w-5" })
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex-1",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: cn("font-medium transition-colors duration-300", isCompleted ? "text-emerald-700" : isError ? "text-red-600" : isActive ? "text-primary" : "text-slate-400"),
+									children: s$2.label
+								})
+							})]
+						}, index$1);
+					})
+				})
+			]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "flex-1 bg-slate-900 rounded-xl p-6 font-mono text-xs text-green-400 overflow-hidden relative shadow-2xl flex flex-col",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50 animate-pulse" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex justify-between items-center mb-4 border-b border-slate-700 pb-2 shrink-0",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-slate-400",
+						children: "gamma-api-stream.log"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "px-2 py-0.5 rounded bg-slate-800 text-slate-300",
+						children: "v1.0"
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex-1 overflow-y-auto space-y-2 opacity-90 pb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 							className: "text-slate-500",
-							children: "// Request Payload"
+							children: "// Initializing session..."
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "pl-4 border-l-2 border-slate-700",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "POST /api/v1/generate" }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "Content-Type: application/json" }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "{" }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-4",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-purple-400",
-											children: "\"gammaId\""
-										}),
-										":",
-										" ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-yellow-300",
-											children: "\"TEMPLATE_REAL_ESTATE_01\""
-										}),
-										","
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-4",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-purple-400",
-											children: "\"requestId\""
-										}),
-										":",
-										" ",
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "text-yellow-300",
-											children: [
-												"\"req_",
-												Math.random().toString(36).substr(2, 9),
-												"\""
-											]
-										}),
-										","
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-4",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-purple-400",
-											children: "\"data\""
-										}),
-										": ",
-										"{"
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-8",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-blue-300",
-											children: "\"client\""
-										}),
-										": \"",
-										data.clientName,
-										"\","
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-8",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-blue-300",
-											children: "\"property\""
-										}),
-										": \"",
-										data.propertyTitle,
-										"\","
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-8",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-blue-300",
-											children: "\"value\""
-										}),
-										":",
-										" ",
-										data.discountedValue,
-										","
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "pl-8",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-blue-300",
-											children: "\"broker\""
-										}),
-										": \"",
-										data.brokerName,
-										"\""
-									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "pl-4",
-									children: "}"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "}" })
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "mt-8",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-slate-500",
-									children: "// Response Stream"
-								}),
-								step > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "animate-fade-in text-yellow-300",
-									children: [">", " Validating schema..."]
-								}),
-								step > 1 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "animate-fade-in text-blue-300",
-									children: [">", " Uploading assets to CDN..."]
-								}),
-								step > 2 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "animate-fade-in text-purple-300",
-									children: [">", " Rendering PDF pages [1/3]..."]
-								}),
-								step > 3 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-									className: "animate-fade-in text-green-300",
-									children: [">", " Document ready. buffer_size: 2.4MB"]
-								})
-							]
+						logs.map((log, i$2) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "animate-fade-in",
+							dangerouslySetInnerHTML: { __html: log }
+						}, i$2)),
+						currentStep === 2 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "animate-pulse text-slate-500",
+							children: "_"
 						})
 					]
 				}),
-				step < 3 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-slate-900 to-transparent" })
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none" })
 			]
 		})]
 	});
 }
 function ProposalDelivery({ proposal, onReset }) {
-	const handlePrint = () => {
-		window.open(`/print/${proposal.id}`, "_blank", "noopener,noreferrer");
+	const handleDownload = () => {
+		if (proposal.pdfUrl) window.open(proposal.pdfUrl, "_blank", "noopener,noreferrer");
+		else window.open(`/print/${proposal.id}`, "_blank", "noopener,noreferrer");
+	};
+	const handleOpenOnline = () => {
+		if (proposal.gammaUrl) window.open(proposal.gammaUrl, "_blank", "noopener,noreferrer");
+		else window.open(`/print/${proposal.id}`, "_blank", "noopener,noreferrer");
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "flex flex-col items-center justify-center py-10 animate-in fade-in slide-in-from-bottom-4 duration-500",
@@ -35560,7 +35507,7 @@ function ProposalDelivery({ proposal, onReset }) {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "text-slate-500 mb-10 text-center max-w-md",
-				children: "O documento foi criado e salvo no seu histórico. Você pode baixar o PDF ou visualizar a versão online."
+				children: "O documento PDF foi criado via Gamma AI e está pronto para entrega."
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "grid md:grid-cols-2 gap-8 w-full max-w-4xl mb-12",
@@ -35574,7 +35521,8 @@ function ProposalDelivery({ proposal, onReset }) {
 								className: "text-base font-medium text-slate-500 uppercase tracking-wider",
 								children: "Resumo"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500",
+								className: "text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500 truncate max-w-[120px]",
+								title: proposal.generationId,
 								children: proposal.generationId
 							})]
 						})
@@ -35627,16 +35575,18 @@ function ProposalDelivery({ proposal, onReset }) {
 					className: "flex flex-col justify-center space-y-4",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Button, {
-							onClick: handlePrint,
+							onClick: handleDownload,
 							size: "lg",
 							className: "h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform",
+							disabled: !proposal.pdfUrl && !proposal.id,
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-5 w-5" }), "Baixar PDF"]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Button, {
-							onClick: handlePrint,
+							onClick: handleOpenOnline,
 							variant: "outline",
 							size: "lg",
 							className: "h-14 text-lg w-full bg-white hover:bg-slate-50",
+							disabled: !proposal.gammaUrl && !proposal.id,
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "mr-2 h-5 w-5" }), "Abrir versão online"]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -35706,14 +35656,19 @@ function Index() {
 			...data,
 			id: generateId(),
 			createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-			generationId: generateUUID()
+			generationId: ""
 		});
 		setStep("processing");
 	};
-	const handleProcessingComplete = () => {
+	const handleProcessingComplete = (result) => {
 		if (currentProposal) {
+			const completedProposal = {
+				...currentProposal,
+				...result
+			};
+			setCurrentProposal(completedProposal);
 			const history = JSON.parse(localStorage.getItem("pdfcorretor_history") || "[]");
-			localStorage.setItem("pdfcorretor_history", JSON.stringify([currentProposal, ...history]));
+			localStorage.setItem("pdfcorretor_history", JSON.stringify([completedProposal, ...history]));
 			setStep("delivery");
 		}
 	};
@@ -35756,7 +35711,7 @@ function Index() {
 						children: "Nova Proposta"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-muted-foreground",
-						children: "Preencha os dados abaixo para gerar um documento comercial profissional."
+						children: "Preencha os dados abaixo para gerar um documento comercial profissional via Gamma AI."
 					})]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ProposalForm, {
 					form,
@@ -37173,14 +37128,24 @@ function History() {
 					})
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuContent, {
 					align: "end",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuItem, {
-						onClick: () => window.open(`/print/${proposal.id}`, "_blank"),
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Printer, { className: "mr-2 h-4 w-4" }), "Imprimir / Baixar PDF"]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuItem, {
-						onClick: () => handleDelete(proposal.id),
-						className: "text-destructive focus:text-destructive",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "mr-2 h-4 w-4" }), "Excluir"]
-					})]
+					children: [
+						proposal.pdfUrl ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuItem, {
+							onClick: () => window.open(proposal.pdfUrl, "_blank"),
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-4 w-4" }), "Baixar PDF"]
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuItem, {
+							onClick: () => window.open(`/print/${proposal.id}`, "_blank"),
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-4 w-4" }), "Imprimir (Local)"]
+						}),
+						proposal.gammaUrl && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuItem, {
+							onClick: () => window.open(proposal.gammaUrl, "_blank"),
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "mr-2 h-4 w-4" }), "Ver Online"]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DropdownMenuItem, {
+							onClick: () => handleDelete(proposal.id),
+							className: "text-destructive focus:text-destructive",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "mr-2 h-4 w-4" }), "Excluir"]
+						})
+					]
 				})] }) })
 			] }, proposal.id)) })] })
 		})
@@ -38598,4 +38563,4 @@ var App = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BrowserRouter, {
 var App_default = App;
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App_default, {}));
 
-//# sourceMappingURL=index-D9RB6adN.js.map
+//# sourceMappingURL=index-BvpUcAy0.js.map

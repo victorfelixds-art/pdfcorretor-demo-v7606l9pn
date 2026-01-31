@@ -1,13 +1,7 @@
 import { Proposal } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  CheckCircle2,
-  Download,
-  ExternalLink,
-  FileText,
-  RefreshCw,
-} from 'lucide-react'
+import { CheckCircle2, Download, ExternalLink, RefreshCw } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 interface ProposalDeliveryProps {
@@ -16,9 +10,21 @@ interface ProposalDeliveryProps {
 }
 
 export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
-  const handlePrint = () => {
-    // Open the print route in a new window
-    window.open(`/print/${proposal.id}`, '_blank', 'noopener,noreferrer')
+  const handleDownload = () => {
+    if (proposal.pdfUrl) {
+      window.open(proposal.pdfUrl, '_blank', 'noopener,noreferrer')
+    } else {
+      // Fallback for older/mocked proposals
+      window.open(`/print/${proposal.id}`, '_blank', 'noopener,noreferrer')
+    }
+  }
+
+  const handleOpenOnline = () => {
+    if (proposal.gammaUrl) {
+      window.open(proposal.gammaUrl, '_blank', 'noopener,noreferrer')
+    } else {
+      window.open(`/print/${proposal.id}`, '_blank', 'noopener,noreferrer')
+    }
   }
 
   return (
@@ -31,8 +37,7 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
         Proposta gerada com sucesso!
       </h2>
       <p className="text-slate-500 mb-10 text-center max-w-md">
-        O documento foi criado e salvo no seu histórico. Você pode baixar o PDF
-        ou visualizar a versão online.
+        O documento PDF foi criado via Gamma AI e está pronto para entrega.
       </p>
 
       <div className="grid md:grid-cols-2 gap-8 w-full max-w-4xl mb-12">
@@ -43,7 +48,10 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
               <CardTitle className="text-base font-medium text-slate-500 uppercase tracking-wider">
                 Resumo
               </CardTitle>
-              <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">
+              <span
+                className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500 truncate max-w-[120px]"
+                title={proposal.generationId}
+              >
                 {proposal.generationId}
               </span>
             </div>
@@ -73,19 +81,21 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
         {/* Actions */}
         <div className="flex flex-col justify-center space-y-4">
           <Button
-            onClick={handlePrint}
+            onClick={handleDownload}
             size="lg"
             className="h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform"
+            disabled={!proposal.pdfUrl && !proposal.id}
           >
             <Download className="mr-2 h-5 w-5" />
             Baixar PDF
           </Button>
 
           <Button
-            onClick={handlePrint}
+            onClick={handleOpenOnline}
             variant="outline"
             size="lg"
             className="h-14 text-lg w-full bg-white hover:bg-slate-50"
+            disabled={!proposal.gammaUrl && !proposal.id}
           >
             <ExternalLink className="mr-2 h-5 w-5" />
             Abrir versão online

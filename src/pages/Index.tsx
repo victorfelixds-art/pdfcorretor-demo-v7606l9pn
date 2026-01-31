@@ -6,7 +6,7 @@ import { ProposalForm } from '@/components/proposal/ProposalForm'
 import { ProposalProcessing } from '@/components/proposal/ProposalProcessing'
 import { ProposalDelivery } from '@/components/proposal/ProposalDelivery'
 import { Button } from '@/components/ui/button'
-import { generateId, generateUUID } from '@/lib/utils'
+import { generateId } from '@/lib/utils'
 
 export default function Index() {
   const [step, setStep] = useState<'form' | 'processing' | 'delivery'>('form')
@@ -59,26 +59,35 @@ export default function Index() {
   }
 
   const onSubmit = (data: ProposalFormValues) => {
+    // We create an initial proposal object without the external IDs
     const proposal: Proposal = {
       ...data,
       id: generateId(),
       createdAt: new Date().toISOString(),
-      generationId: generateUUID(),
+      generationId: '', // Will be filled by Gamma integration
     }
     setCurrentProposal(proposal)
     setStep('processing')
   }
 
-  const handleProcessingComplete = () => {
+  const handleProcessingComplete = (result: Partial<Proposal>) => {
     if (currentProposal) {
-      // Save to localStorage
+      const completedProposal: Proposal = {
+        ...currentProposal,
+        ...result, // Merges generationId, pdfUrl, gammaUrl
+      }
+
+      setCurrentProposal(completedProposal)
+
+      // Save to localStorage with persistence of API links
       const history = JSON.parse(
         localStorage.getItem('pdfcorretor_history') || '[]',
       )
       localStorage.setItem(
         'pdfcorretor_history',
-        JSON.stringify([currentProposal, ...history]),
+        JSON.stringify([completedProposal, ...history]),
       )
+
       setStep('delivery')
     }
   }
@@ -122,7 +131,7 @@ export default function Index() {
             <h2 className="text-2xl font-bold tracking-tight">Nova Proposta</h2>
             <p className="text-muted-foreground">
               Preencha os dados abaixo para gerar um documento comercial
-              profissional.
+              profissional via Gamma AI.
             </p>
           </div>
           <ProposalForm form={form} onSubmit={onSubmit} />
