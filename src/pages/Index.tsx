@@ -79,13 +79,25 @@ export default function Index() {
 
       setCurrentProposal(completedProposal)
 
-      // Save to localStorage with persistence of API links
+      // Save to localStorage with persistence required by User Story
+      // Structure: date/time, cliente, valor_com_desconto, unidade, pdf_link
       const history = JSON.parse(
         localStorage.getItem('pdfcorretor_history') || '[]',
       )
+
+      const historyItem = {
+        ...completedProposal,
+        // Ensure specific Portuguese keys exist for compliance if inspected directly
+        cliente: completedProposal.clientName,
+        valor_com_desconto: completedProposal.discountedValue,
+        unidade: completedProposal.unit,
+        pdf_link: completedProposal.pdfUrl,
+        date: completedProposal.createdAt,
+      }
+
       localStorage.setItem(
         'pdfcorretor_history',
-        JSON.stringify([completedProposal, ...history]),
+        JSON.stringify([historyItem, ...history]),
       )
 
       setStep('delivery')

@@ -27,15 +27,15 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
 
   return (
     <div className="flex flex-col items-center justify-center py-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="h-20 w-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100">
+      <div className="h-20 w-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100 ring-4 ring-emerald-50">
         <CheckCircle2 className="h-10 w-10" />
       </div>
 
       <h2 className="text-3xl font-bold text-slate-800 mb-2 text-center">
-        Proposta gerada com sucesso!
+        Sucesso!
       </h2>
       <p className="text-slate-500 mb-10 text-center max-w-md">
-        O documento PDF foi criado via Gamma API e está pronto para entrega.
+        Sua proposta foi gerada e já está salva no histórico.
       </p>
 
       <div className="grid md:grid-cols-2 gap-8 w-full max-w-4xl mb-12">
@@ -44,14 +44,8 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
           <CardHeader className="bg-white border-b pb-4">
             <div className="flex justify-between items-center">
               <CardTitle className="text-base font-medium text-slate-500 uppercase tracking-wider">
-                Resumo
+                Resumo da Proposta
               </CardTitle>
-              <span
-                className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500 truncate max-w-[120px]"
-                title={proposal.generationId}
-              >
-                {proposal.generationId}
-              </span>
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
@@ -64,14 +58,14 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
               <span className="font-semibold">{proposal.propertyTitle}</span>
             </div>
             <div className="flex justify-between items-center border-b border-dashed pb-3">
+              <span className="text-slate-500">Unidade</span>
+              <span className="font-semibold">{proposal.unit}</span>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-slate-500">Valor Final</span>
               <span className="font-bold text-emerald-600 text-lg">
                 {formatCurrency(proposal.discountedValue)}
               </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-500">Corretor</span>
-              <span className="font-semibold">{proposal.brokerName}</span>
             </div>
           </CardContent>
         </Card>
@@ -85,7 +79,7 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
             disabled={!proposal.pdfUrl && !proposal.id}
           >
             <Download className="mr-2 h-5 w-5" />
-            {proposal.pdfUrl ? 'Baixar PDF Oficial' : 'Baixar PDF (Local)'}
+            Baixar PDF
           </Button>
 
           {proposal.gammaUrl && (
@@ -93,21 +87,21 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
               onClick={handleOpenOnline}
               variant="outline"
               size="lg"
-              className="h-14 text-lg w-full bg-white hover:bg-slate-50"
+              className="h-14 text-lg w-full bg-white hover:bg-slate-50 border-2"
             >
               <ExternalLink className="mr-2 h-5 w-5" />
-              Abrir versão online
+              Abrir no Gamma
             </Button>
           )}
 
-          <div className="pt-4">
+          <div className="pt-4 border-t mt-4">
             <Button
               onClick={onReset}
               variant="ghost"
               className="w-full text-slate-400 hover:text-slate-600"
             >
               <RefreshCw className="mr-2 h-4 w-4" />
-              Gerar outra proposta
+              Criar Nova Proposta
             </Button>
           </div>
         </div>

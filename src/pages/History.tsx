@@ -68,93 +68,102 @@ export default function History() {
   }
 
   return (
-    <Card className="animate-in fade-in">
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Imóvel / Unidade</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {proposals.map((proposal) => (
-              <TableRow key={proposal.id}>
-                <TableCell className="font-medium">
-                  {format(new Date(proposal.createdAt), 'dd/MM/yyyy HH:mm', {
-                    locale: ptBR,
-                  })}
-                </TableCell>
-                <TableCell>{proposal.clientName}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {proposal.propertyTitle}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {proposal.unit}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="font-bold text-emerald-600">
-                  {formatCurrency(proposal.discountedValue)}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Abrir menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {proposal.pdfUrl ? (
-                        <DropdownMenuItem
-                          onClick={() => window.open(proposal.pdfUrl, '_blank')}
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          Baixar PDF
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          onClick={() =>
-                            window.open(`/print/${proposal.id}`, '_blank')
-                          }
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          Imprimir (Local)
-                        </DropdownMenuItem>
-                      )}
+    <div className="space-y-6 animate-in fade-in">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold tracking-tight">Histórico</h2>
+        <Button
+          variant="outline"
+          onClick={() => {
+            localStorage.removeItem('pdfcorretor_history')
+            setProposals([])
+            toast.success('Histórico limpo com sucesso')
+          }}
+        >
+          Limpar Histórico
+        </Button>
+      </div>
 
-                      {proposal.gammaUrl && (
-                        <DropdownMenuItem
-                          onClick={() =>
-                            window.open(proposal.gammaUrl, '_blank')
-                          }
-                        >
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Ver Online
-                        </DropdownMenuItem>
-                      )}
-
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(proposal.id)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Imóvel / Unidade</TableHead>
+                <TableHead>Valor Final</TableHead>
+                <TableHead className="w-[100px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+            </TableHeader>
+            <TableBody>
+              {proposals.map((proposal) => (
+                <TableRow key={proposal.id}>
+                  <TableCell className="font-medium">
+                    {format(new Date(proposal.createdAt), 'dd/MM/yyyy HH:mm', {
+                      locale: ptBR,
+                    })}
+                  </TableCell>
+                  <TableCell>{proposal.clientName}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {proposal.propertyTitle}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {proposal.unit}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-bold text-emerald-600">
+                    {formatCurrency(proposal.discountedValue)}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Abrir menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {proposal.pdfUrl && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              window.open(proposal.pdfUrl, '_blank')
+                            }
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Baixar PDF
+                          </DropdownMenuItem>
+                        )}
+
+                        {proposal.gammaUrl && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              window.open(proposal.gammaUrl, '_blank')
+                            }
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Ver no Gamma
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(proposal.id)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

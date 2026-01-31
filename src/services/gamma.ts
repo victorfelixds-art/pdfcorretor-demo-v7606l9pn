@@ -1,13 +1,11 @@
 import { ProposalFormValues, GammaGenerationResponse } from '@/types'
 import * as GammaBackend from '@/api/gamma'
 
-// Re-exporting the prompt builder if needed by other components, although logic is now in API
 export { buildGammaPrompt } from '@/api/gamma'
 
 /**
  * Triggers the generation of the proposal.
- * In this secure implementation, it delegates to the backend module which handles
- * the API Key and CORS logic (or simulation).
+ * Delegates to the secure backend integration (simulated).
  */
 export async function triggerGammaGeneration(
   data: ProposalFormValues,

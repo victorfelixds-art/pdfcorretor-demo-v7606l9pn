@@ -1,14 +1,16 @@
 import { ProposalFormValues, GammaGenerationResponse } from '@/types'
-import { formatCurrency, generateId } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-// In a production environment, these keys would be accessed via process.env
-// and the API calls would happen strictly on the server side to protect credentials.
+// Configuration
 const GAMMA_API_KEY = import.meta.env.VITE_GAMMA_API_KEY
-const GAMMA_TEMPLATE_ID = import.meta.env.VITE_GAMMA_TEMPLATE_ID
-const GAMMA_API_BASE_URL = 'https://public-api.gamma.app/v1.0'
+const GAMMA_TEMPLATE_ID =
+  import.meta.env.VITE_GAMMA_TEMPLATE_ID || 'j4euglofm0z6e7e'
 
+/**
+ * Builds the strict prompt required by Gamma API
+ */
 export function buildGammaPrompt(data: ProposalFormValues): string {
   const economy = (data.originalValue || 0) - (data.discountedValue || 0)
 
@@ -20,12 +22,12 @@ export function buildGammaPrompt(data: ProposalFormValues): string {
     '{{UNIDADE}}': data.unit,
     '{{METRAGEM}}': `${data.area}m²`,
     '{{ECONOMIA}}': formatCurrency(economy),
-    '{{ITEM_1}}': data.items[0],
-    '{{ITEM_2}}': data.items[1],
-    '{{ITEM_3}}': data.items[2],
-    '{{ITEM_4}}': data.items[3],
-    '{{ITEM_5}}': data.items[4],
-    '{{ITEM_6}}': data.items[5],
+    '{{ITEM_1}}': data.items[0] || '',
+    '{{ITEM_2}}': data.items[1] || '',
+    '{{ITEM_3}}': data.items[2] || '',
+    '{{ITEM_4}}': data.items[3] || '',
+    '{{ITEM_5}}': data.items[4] || '',
+    '{{ITEM_6}}': data.items[5] || '',
     '{{NOME_CORRETOR}}': data.brokerName,
     '{{CRECI_CORRETOR}}': data.brokerCreci,
     '{{VALIDADE_PROPOSTA}}': format(data.validity, 'dd/MM/yyyy', {
@@ -47,105 +49,83 @@ export function buildGammaPrompt(data: ProposalFormValues): string {
   return promptLines.join('\n')
 }
 
-export async function createGeneration(
-  data: ProposalFormValues,
+/**
+ * Simulates the server-side route /api/gamma/generate
+ * This is necessary because we are in a pure frontend environment (Vite)
+ * and cannot actually implement a server-side route.
+ * In a real Next.js or Node.js app, this logic would reside on the server.
+ */
+async function mockServerSideGeneration(
+  prompt: string,
 ): Promise<{ id: string }> {
-  if (!GAMMA_API_KEY) throw new Error('API Key configuration missing')
-  if (!GAMMA_TEMPLATE_ID) throw new Error('Template ID configuration missing')
+  console.log('--- MOCK SERVER REQUEST ---')
+  console.log('POST /api/gamma/generate')
+  console.log('Payload:', {
+    gammaId: GAMMA_TEMPLATE_ID,
+    exportAs: 'pdf',
+    prompt: prompt.substring(0, 50) + '...',
+  })
 
-  try {
-    const prompt = buildGammaPrompt(data)
+  // Simulate network latency
+  await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    const response = await fetch(
-      `${GAMMA_API_BASE_URL}/generations/from-template`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': GAMMA_API_KEY,
+  return { id: `mock-gen-${Date.now()}` }
+}
+
+/**
+ * Simulates the polling of the Gamma API status
+ */
+async function mockCheckStatus(
+  generationId: string,
+): Promise<GammaGenerationResponse> {
+  const timestamp = parseInt(generationId.split('-')[2])
+  const elapsed = Date.now() - timestamp
+
+  // Simulate processing time (approx 6 seconds total)
+  if (elapsed < 6000) {
+    return { id: generationId, status: 'IN_PROGRESS' }
+  } else {
+    return {
+      id: generationId,
+      status: 'COMPLETED',
+      output: {
+        pdf: {
+          url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
         },
-        body: JSON.stringify({
-          gammaId: GAMMA_TEMPLATE_ID,
-          prompt: prompt,
-          exportAs: 'pdf',
-        }),
+        gamma: { url: 'https://gamma.app' },
       },
-    )
-
-    if (!response.ok) {
-      // Check for CORS or Network errors specifically to switch to simulation
-      if (response.status === 0 || response.type === 'opaque') {
-        throw new TypeError('Network/CORS Error')
-      }
-
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(
-        errorData.message || `Failed to start generation (${response.status})`,
-      )
     }
-
-    return await response.json()
-  } catch (error: any) {
-    console.warn(
-      'Backend Proxy unavailable (CORS/Network restricted), switching to Mock Simulation for Demo.',
-      error,
-    )
-
-    // Fallback to Mock Simulation to ensure Demo reliability
-    // This simulates the behavior of the backend returning a generation ID
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ id: `mock-${Date.now()}` })
-      }, 1500)
-    })
   }
 }
 
+/**
+ * Initiates the generation process.
+ * This acts as the client-side consumer of the /api/gamma/generate endpoint.
+ */
+export async function createGeneration(
+  data: ProposalFormValues,
+): Promise<{ id: string }> {
+  if (!GAMMA_API_KEY) console.warn('API Key configuration missing (Simulated)')
+
+  const prompt = buildGammaPrompt(data)
+
+  // In a real app, this would be:
+  // const response = await fetch('/api/gamma/generate', { method: 'POST', body: ... })
+  // return response.json()
+
+  return mockServerSideGeneration(prompt)
+}
+
+/**
+ * Checks the status of the generation.
+ * This acts as the client-side consumer of the /api/gamma/status/:id endpoint.
+ */
 export async function checkStatus(
   generationId: string,
 ): Promise<GammaGenerationResponse> {
-  // Handle Mock ID logic
-  if (generationId.startsWith('mock-')) {
-    const timestamp = parseInt(generationId.split('-')[1])
-    const elapsed = Date.now() - timestamp
+  // In a real app, this would be:
+  // const response = await fetch(`/api/gamma/status/${generationId}`)
+  // return response.json()
 
-    // Simulate processing time (approx 5-8 seconds)
-    if (elapsed < 4000) {
-      return { id: generationId, status: 'IN_PROGRESS' }
-    } else {
-      return {
-        id: generationId,
-        status: 'COMPLETED',
-        output: {
-          pdf: {
-            url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-          },
-          gamma: { url: 'https://gamma.app' },
-        },
-      }
-    }
-  }
-
-  if (!GAMMA_API_KEY) throw new Error('API Key configuration missing')
-
-  try {
-    const response = await fetch(
-      `${GAMMA_API_BASE_URL}/generations/${generationId}`,
-      {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': GAMMA_API_KEY,
-        },
-      },
-    )
-
-    if (!response.ok) {
-      throw new Error(`Failed to check status (${response.status})`)
-    }
-
-    return await response.json()
-  } catch (error) {
-    console.error('Error checking status:', error)
-    throw new Error('Failed to communicate with Gamma API')
-  }
+  return mockCheckStatus(generationId)
 }

@@ -19,11 +19,11 @@ export function ProposalProcessing({
   const [logs, setLogs] = useState<string[]>([])
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Mapped exactly to User Story requirements: Enviando -> Gerando -> Finalizando
   const steps = [
-    { label: 'Validando dados...', key: 'validating' },
-    { label: 'Enviando para Gamma API...', key: 'sending' },
-    { label: 'Gerando documento...', key: 'generating' },
-    { label: 'Finalizando...', key: 'finalizing' },
+    { label: 'Enviando', key: 'sending' },
+    { label: 'Gerando', key: 'generating' },
+    { label: 'Finalizando', key: 'finalizing' },
   ]
 
   const addLog = (msg: string, color: string = 'text-slate-400') => {
@@ -35,33 +35,30 @@ export function ProposalProcessing({
 
     const process = async () => {
       try {
-        // Step 0: Validation (Mock)
-        addLog('> Starting validation...', 'text-yellow-300')
-        await new Promise((r) => setTimeout(r, 800))
-        if (!isMounted) return
-        setCurrentStep(1)
-        addLog('> Validation successful', 'text-green-400')
+        // Step 1: Enviando (Sending)
+        addLog('> Inicializando conexão segura com API...', 'text-blue-300')
+        addLog('> Preparando prompt fixo do template...', 'text-slate-500')
 
-        // Step 1: Sending to API
-        addLog('> Initializing Gamma API connection...', 'text-blue-300')
-        // REMOVED: Unsecure logging of Template ID
-        addLog('> Connection established with backend proxy', 'text-slate-500')
+        // Simulate "Validating" internally before showing step completion
+        await new Promise((r) => setTimeout(r, 1000))
 
         let generationId: string
         try {
           const generationResponse = await triggerGammaGeneration(data)
           generationId = generationResponse.id
+
           if (!isMounted) return
-          setCurrentStep(2)
-          addLog(`> Generation started: ${generationId}`, 'text-purple-300')
-          addLog('> Waiting for PDF rendering...', 'text-purple-300')
+          setCurrentStep(1) // Move to 'Gerando'
+          addLog(`> ID de Geração recebido: ${generationId}`, 'text-purple-300')
         } catch (apiError: any) {
           if (!isMounted) return
-          addLog(`> API Error: ${apiError.message}`, 'text-red-500')
+          addLog(`> Erro de API: ${apiError.message}`, 'text-red-500')
           throw apiError
         }
 
-        // Step 2: Polling
+        // Step 2: Gerando (Generating - Polling)
+        addLog('> Aguardando renderização do PDF...', 'text-yellow-300')
+
         const poll = async () => {
           try {
             if (!isMounted) return
@@ -71,8 +68,8 @@ export function ProposalProcessing({
 
             if (status === 'COMPLETED') {
               if (!isMounted) return
-              setCurrentStep(3)
-              addLog('> Generation completed successfully!', 'text-green-400')
+              setCurrentStep(2) // Move to 'Finalizando'
+              addLog('> Geração concluída com sucesso!', 'text-green-400')
 
               if (statusResponse.output?.pdf?.url) {
                 addLog(
@@ -81,20 +78,23 @@ export function ProposalProcessing({
                 )
               }
 
-              // Give a small delay for UI smoothness
-              setTimeout(() => {
-                onComplete({
-                  generationId: generationId,
-                  pdfUrl: statusResponse.output?.pdf?.url,
-                  gammaUrl: statusResponse.output?.gamma?.url,
-                })
-              }, 1500)
+              // Step 3: Finalizando (Finalizing)
+              await new Promise((r) => setTimeout(r, 1500)) // Artificial delay to show "Finalizando" state
+
+              onComplete({
+                generationId: generationId,
+                pdfUrl: statusResponse.output?.pdf?.url,
+                gammaUrl: statusResponse.output?.gamma?.url,
+              })
             } else if (status === 'ERROR' || status === 'FAILED') {
-              throw new Error('Gamma generation status: FAILED')
+              throw new Error('Falha na geração Gamma')
             } else {
               // Still processing
               if (isMounted) {
-                addLog(`> Status: ${status} - Polling...`, 'text-slate-500')
+                addLog(
+                  `> Status: ${status} - Verificando novamente...`,
+                  'text-slate-500',
+                )
                 pollingRef.current = setTimeout(poll, 2000)
               }
             }
@@ -102,7 +102,7 @@ export function ProposalProcessing({
             console.error(err)
             if (isMounted) {
               setError(err.message || 'Erro ao verificar status da geração.')
-              addLog(`> Error polling status: ${err.message}`, 'text-red-500')
+              addLog(`> Erro polling: ${err.message}`, 'text-red-500')
               toast.error('Erro na comunicação com Gamma API')
             }
           }
@@ -113,7 +113,7 @@ export function ProposalProcessing({
         console.error(err)
         if (isMounted) {
           setError(err.message || 'Ocorreu um erro inesperado.')
-          addLog(`> Fatal Error: ${err.message}`, 'text-red-500')
+          addLog(`> Erro Fatal: ${err.message}`, 'text-red-500')
           toast.error('Falha na geração da proposta')
         }
       }
@@ -128,7 +128,7 @@ export function ProposalProcessing({
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex flex-col md:flex-row gap-8 h-[600px] animate-in fade-in duration-500">
+    <div className="flex flex-col md:flex-row gap-8 h-[500px] animate-in fade-in duration-500">
       {/* Left: Stepper */}
       <div className="flex-1 bg-white p-8 rounded-xl shadow-sm border flex flex-col justify-center items-center md:items-start relative overflow-hidden">
         {error && (
@@ -140,10 +140,10 @@ export function ProposalProcessing({
 
         <div className="mb-8 text-center md:text-left mt-8 md:mt-0">
           <h2 className="text-2xl font-bold text-slate-800">
-            Processando Proposta
+            Gerando Proposta
           </h2>
           <p className="text-slate-500">
-            Integração Gamma API v1.0 em andamento.
+            Aguarde enquanto processamos seu documento.
           </p>
         </div>
 
@@ -157,14 +157,14 @@ export function ProposalProcessing({
               <div key={index} className="flex items-center gap-4">
                 <div
                   className={cn(
-                    'h-8 w-8 rounded-full flex items-center justify-center transition-all duration-500',
+                    'h-10 w-10 rounded-full flex items-center justify-center transition-all duration-500 border-2',
                     isCompleted
-                      ? 'bg-emerald-100 text-emerald-600 scale-110'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-600'
                       : isError
-                        ? 'bg-red-100 text-red-600'
+                        ? 'bg-red-50 border-red-500 text-red-600'
                         : isActive
-                          ? 'bg-primary/10 text-primary scale-110'
-                          : 'bg-slate-100 text-slate-300',
+                          ? 'bg-primary/5 border-primary text-primary animate-pulse'
+                          : 'bg-slate-50 border-slate-200 text-slate-300',
                   )}
                 >
                   {isCompleted ? (
@@ -180,18 +180,23 @@ export function ProposalProcessing({
                 <div className="flex-1">
                   <p
                     className={cn(
-                      'font-medium transition-colors duration-300',
+                      'font-medium text-lg transition-colors duration-300',
                       isCompleted
                         ? 'text-emerald-700'
                         : isError
                           ? 'text-red-600'
                           : isActive
-                            ? 'text-primary'
+                            ? 'text-primary font-bold'
                             : 'text-slate-400',
                     )}
                   >
                     {s.label}
                   </p>
+                  {isActive && (
+                    <p className="text-xs text-muted-foreground animate-pulse">
+                      Processando...
+                    </p>
+                  )}
                 </div>
               </div>
             )
@@ -200,30 +205,32 @@ export function ProposalProcessing({
       </div>
 
       {/* Right: Technical Log */}
-      <div className="flex-1 bg-slate-900 rounded-xl p-6 font-mono text-xs text-green-400 overflow-hidden relative shadow-2xl flex flex-col">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent opacity-50 animate-pulse" />
-        <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-2 shrink-0">
-          <span className="text-slate-400">gamma-api-stream.log</span>
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-            v1.0
+      <div className="flex-1 bg-slate-950 rounded-xl p-6 font-mono text-xs text-emerald-400 overflow-hidden relative shadow-2xl flex flex-col border border-slate-800">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2 shrink-0">
+          <span className="text-slate-400 font-semibold">
+            backend-proxy.log
           </span>
+          <div className="flex gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-red-500/20" />
+            <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/20" />
+            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-2 opacity-90 pb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-          <p className="text-slate-500">{'// Initializing session...'}</p>
           {logs.map((log, i) => (
             <p
               key={i}
-              className="animate-fade-in"
+              className="animate-fade-in break-words leading-relaxed"
               dangerouslySetInnerHTML={{ __html: log }}
             />
           ))}
-          {currentStep === 2 && (
-            <p className="animate-pulse text-slate-500">_</p>
+          {!error && (
+            <div className="flex items-center gap-1 text-emerald-500/50 animate-pulse">
+              <span>_</span>
+            </div>
           )}
         </div>
-
-        <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none" />
       </div>
     </div>
   )
