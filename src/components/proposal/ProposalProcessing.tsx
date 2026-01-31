@@ -156,7 +156,9 @@ export function ProposalProcessing({
           try {
             const parsed = JSON.parse(err.message)
             msg = parsed.message
-          } catch {}
+          } catch {
+            // Ignore JSON parse error
+          }
 
           setError(msg || 'Ocorreu um erro inesperado.')
           addLog(`Process Terminated: ${msg}`, 'error')
