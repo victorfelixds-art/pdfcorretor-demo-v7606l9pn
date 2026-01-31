@@ -34977,13 +34977,15 @@ var CurrencyInput = ({ field, ...props }) => {
 		const numberValue = Number(value) / 100;
 		field.onChange(numberValue);
 	};
+	const displayValue = field.value ? new Intl.NumberFormat("pt-BR", {
+		style: "currency",
+		currency: "BRL"
+	}).format(field.value) : "";
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 		...props,
-		value: field.value ? new Intl.NumberFormat("pt-BR", {
-			style: "currency",
-			currency: "BRL"
-		}).format(field.value) : "",
-		onChange: handleChange
+		value: displayValue,
+		onChange: handleChange,
+		defaultValue: void 0
 	});
 };
 function ProposalForm({ form, onSubmit }) {
@@ -35012,7 +35014,8 @@ function ProposalForm({ form, onSubmit }) {
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormLabel, { children: "Nome do Cliente" }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 										placeholder: "Ex: João da Silva",
-										...field
+										...field,
+										value: field.value ?? ""
 									}) }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})
 								] })
@@ -35023,7 +35026,8 @@ function ProposalForm({ form, onSubmit }) {
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormLabel, { children: "WhatsApp (Opcional)" }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 										placeholder: "(11) 99999-9999",
-										...field
+										...field,
+										value: field.value ?? ""
 									}) }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})
 								] })
@@ -35045,7 +35049,8 @@ function ProposalForm({ form, onSubmit }) {
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormLabel, { children: "Título do Imóvel" }),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 											placeholder: "Ex: Apartamento Luxo Jardins",
-											...field
+											...field,
+											value: field.value ?? ""
 										}) }),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})
 									] })
@@ -35095,7 +35100,8 @@ function ProposalForm({ form, onSubmit }) {
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormLabel, { children: "Unidade" }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 												placeholder: "Apto 402",
-												...field
+												...field,
+												value: field.value ?? ""
 											}) }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})
 										] })
@@ -35109,6 +35115,7 @@ function ProposalForm({ form, onSubmit }) {
 												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 													placeholder: "125",
 													...field,
+													value: field.value ?? "",
 													className: "pr-8"
 												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 													className: "absolute right-3 top-2.5 text-xs text-muted-foreground font-medium",
@@ -35126,7 +35133,8 @@ function ProposalForm({ form, onSubmit }) {
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormLabel, { children: "Endereço" }),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 											placeholder: "Rua das Flores, 123",
-											...field
+											...field,
+											value: field.value ?? ""
 										}) }),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})
 									] })
@@ -35159,7 +35167,8 @@ function ProposalForm({ form, onSubmit }) {
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 										className: "pl-8",
 										placeholder: `Destaque ${index$1 + 1}`,
-										...field
+										...field,
+										value: field.value ?? ""
 									})]
 								}) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})] })
 							}, index$1))
@@ -35193,7 +35202,8 @@ function ProposalForm({ form, onSubmit }) {
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormLabel, { children: "Parcelas (Qtd/Valor)" }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 												placeholder: "60x de R$ 2.500",
-												...field
+												...field,
+												value: field.value ?? ""
 											}) }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})
 										] })
@@ -35247,7 +35257,8 @@ function ProposalForm({ form, onSubmit }) {
 											name: "brokerName",
 											render: ({ field }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(FormItem, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 												placeholder: "Nome do Corretor",
-												...field
+												...field,
+												value: field.value ?? ""
 											}) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})] })
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 											className: "grid grid-cols-2 gap-2",
@@ -35256,14 +35267,16 @@ function ProposalForm({ form, onSubmit }) {
 												name: "brokerCreci",
 												render: ({ field }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(FormItem, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 													placeholder: "CRECI 12345",
-													...field
+													...field,
+													value: field.value ?? ""
 												}) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})] })
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormField, {
 												control: form.control,
 												name: "brokerPhone",
 												render: ({ field }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(FormItem, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormControl, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 													placeholder: "WhatsApp",
-													...field
+													...field,
+													value: field.value ?? ""
 												}) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FormMessage, {})] })
 											})]
 										})]
@@ -35655,24 +35668,39 @@ function ProposalDelivery({ proposal, onReset }) {
 		]
 	});
 }
+var initialValues = {
+	clientName: "",
+	clientPhone: "",
+	propertyTitle: "",
+	originalValue: 0,
+	discountedValue: 0,
+	unit: "",
+	area: "",
+	address: "",
+	items: [
+		"",
+		"",
+		"",
+		"",
+		"",
+		""
+	],
+	downPayment: 0,
+	installments: "",
+	annualPayment: 0,
+	financing: 0,
+	brokerName: "",
+	brokerCreci: "",
+	brokerPhone: "",
+	brokerImage: "",
+	validity: void 0
+};
 function Index() {
 	const [step, setStep] = (0, import_react.useState)("form");
 	const [currentProposal, setCurrentProposal] = (0, import_react.useState)(null);
 	const form = useForm({
 		resolver: a(proposalSchema),
-		defaultValues: {
-			items: [
-				"Acabamento de alto padrão",
-				"Vaga de garagem coberta",
-				"Portaria 24 horas",
-				"Área de lazer completa",
-				"Localização privilegiada",
-				"Varanda gourmet integrada"
-			],
-			originalValue: 0,
-			discountedValue: 0,
-			downPayment: 0
-		}
+		defaultValues: initialValues
 	});
 	const fillExample = () => {
 		form.reset({
@@ -35699,7 +35727,8 @@ function Index() {
 			brokerName: "Carlos Eduardo",
 			brokerCreci: "12345-F",
 			brokerPhone: "(11) 99999-8888",
-			validity: new Date((/* @__PURE__ */ new Date()).setDate((/* @__PURE__ */ new Date()).getDate() + 7))
+			validity: new Date((/* @__PURE__ */ new Date()).setDate((/* @__PURE__ */ new Date()).getDate() + 7)),
+			brokerImage: ""
 		});
 	};
 	const onSubmit = (data) => {
@@ -35732,19 +35761,7 @@ function Index() {
 		}
 	};
 	const resetFlow = () => {
-		form.reset({
-			items: [
-				"Acabamento de alto padrão",
-				"Vaga de garagem coberta",
-				"Portaria 24 horas",
-				"Área de lazer completa",
-				"Localização privilegiada",
-				"Varanda gourmet integrada"
-			],
-			originalValue: 0,
-			discountedValue: 0,
-			downPayment: 0
-		});
+		form.reset(initialValues);
 		setCurrentProposal(null);
 		setStep("form");
 	};
@@ -38633,4 +38650,4 @@ var App = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BrowserRouter, {
 var App_default = App;
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App_default, {}));
 
-//# sourceMappingURL=index-CsWk4U80.js.map
+//# sourceMappingURL=index-BKZKbH5W.js.map

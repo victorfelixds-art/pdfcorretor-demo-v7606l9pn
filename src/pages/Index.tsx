@@ -8,25 +8,35 @@ import { ProposalDelivery } from '@/components/proposal/ProposalDelivery'
 import { Button } from '@/components/ui/button'
 import { generateId } from '@/lib/utils'
 
+// Strict initialization of all fields to prevent uncontrolled inputs
+const initialValues: ProposalFormValues = {
+  clientName: '',
+  clientPhone: '',
+  propertyTitle: '',
+  originalValue: 0,
+  discountedValue: 0,
+  unit: '',
+  area: '',
+  address: '',
+  items: ['', '', '', '', '', ''], // Initialize array with empty strings
+  downPayment: 0,
+  installments: '',
+  annualPayment: 0,
+  financing: 0,
+  brokerName: '',
+  brokerCreci: '',
+  brokerPhone: '',
+  brokerImage: '',
+  validity: undefined as unknown as Date, // Date picker handles undefined
+}
+
 export default function Index() {
   const [step, setStep] = useState<'form' | 'processing' | 'delivery'>('form')
   const [currentProposal, setCurrentProposal] = useState<Proposal | null>(null)
 
   const form = useForm<ProposalFormValues>({
     resolver: zodResolver(proposalSchema),
-    defaultValues: {
-      items: [
-        'Acabamento de alto padrão',
-        'Vaga de garagem coberta',
-        'Portaria 24 horas',
-        'Área de lazer completa',
-        'Localização privilegiada',
-        'Varanda gourmet integrada',
-      ],
-      originalValue: 0,
-      discountedValue: 0,
-      downPayment: 0,
-    },
+    defaultValues: initialValues,
   })
 
   const fillExample = () => {
@@ -55,6 +65,7 @@ export default function Index() {
       brokerCreci: '12345-F',
       brokerPhone: '(11) 99999-8888',
       validity: new Date(new Date().setDate(new Date().getDate() + 7)),
+      brokerImage: '',
     })
   }
 
@@ -105,19 +116,7 @@ export default function Index() {
   }
 
   const resetFlow = () => {
-    form.reset({
-      items: [
-        'Acabamento de alto padrão',
-        'Vaga de garagem coberta',
-        'Portaria 24 horas',
-        'Área de lazer completa',
-        'Localização privilegiada',
-        'Varanda gourmet integrada',
-      ],
-      originalValue: 0,
-      discountedValue: 0,
-      downPayment: 0,
-    })
+    form.reset(initialValues)
     setCurrentProposal(null)
     setStep('form')
   }

@@ -40,18 +40,22 @@ const CurrencyInput = ({ field, ...props }: any) => {
     field.onChange(numberValue)
   }
 
+  // Ensures value is always a string, handling 0 or undefined as empty string for display
+  // or formatting it if valid number.
+  const displayValue = field.value
+    ? new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(field.value)
+    : ''
+
   return (
     <Input
       {...props}
-      value={
-        field.value
-          ? new Intl.NumberFormat('pt-BR', {
-              style: 'currency',
-              currency: 'BRL',
-            }).format(field.value)
-          : ''
-      }
+      value={displayValue}
       onChange={handleChange}
+      // Remove defaultValue to ensure strict controlled mode
+      defaultValue={undefined}
     />
   )
 }
@@ -78,7 +82,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                   <FormItem>
                     <FormLabel>Nome do Cliente</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: João da Silva" {...field} />
+                      <Input
+                        placeholder="Ex: João da Silva"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -91,7 +99,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                   <FormItem>
                     <FormLabel>WhatsApp (Opcional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="(11) 99999-9999" {...field} />
+                      <Input
+                        placeholder="(11) 99999-9999"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -116,6 +128,7 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                       <Input
                         placeholder="Ex: Apartamento Luxo Jardins"
                         {...field}
+                        value={field.value ?? ''}
                       />
                     </FormControl>
                     <FormMessage />
@@ -168,7 +181,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                     <FormItem>
                       <FormLabel>Unidade</FormLabel>
                       <FormControl>
-                        <Input placeholder="Apto 402" {...field} />
+                        <Input
+                          placeholder="Apto 402"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -185,6 +202,7 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                           <Input
                             placeholder="125"
                             {...field}
+                            value={field.value ?? ''}
                             className="pr-8"
                           />
                           <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-medium">
@@ -204,7 +222,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                   <FormItem>
                     <FormLabel>Endereço</FormLabel>
                     <FormControl>
-                      <Input placeholder="Rua das Flores, 123" {...field} />
+                      <Input
+                        placeholder="Rua das Flores, 123"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -241,6 +263,7 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                               className="pl-8"
                               placeholder={`Destaque ${index + 1}`}
                               {...field}
+                              value={field.value ?? ''}
                             />
                           </div>
                         </FormControl>
@@ -282,7 +305,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                     <FormItem>
                       <FormLabel>Parcelas (Qtd/Valor)</FormLabel>
                       <FormControl>
-                        <Input placeholder="60x de R$ 2.500" {...field} />
+                        <Input
+                          placeholder="60x de R$ 2.500"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -336,7 +363,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input placeholder="Nome do Corretor" {...field} />
+                            <Input
+                              placeholder="Nome do Corretor"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -349,7 +380,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                         render={({ field }) => (
                           <FormItem>
                             <FormControl>
-                              <Input placeholder="CRECI 12345" {...field} />
+                              <Input
+                                placeholder="CRECI 12345"
+                                {...field}
+                                value={field.value ?? ''}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -361,7 +396,11 @@ export function ProposalForm({ form, onSubmit }: ProposalFormProps) {
                         render={({ field }) => (
                           <FormItem>
                             <FormControl>
-                              <Input placeholder="WhatsApp" {...field} />
+                              <Input
+                                placeholder="WhatsApp"
+                                {...field}
+                                value={field.value ?? ''}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
