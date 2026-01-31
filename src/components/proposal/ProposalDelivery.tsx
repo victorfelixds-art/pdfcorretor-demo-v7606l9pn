@@ -22,6 +22,9 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
     }
   }
 
+  // Determine if we have a valid PDF URL
+  const hasPdf = !!proposal.pdfUrl && proposal.pdfUrl.length > 0
+
   return (
     <div className="flex flex-col items-center justify-center py-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="h-20 w-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-100 ring-4 ring-emerald-50">
@@ -69,22 +72,27 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
 
         {/* Actions */}
         <div className="flex flex-col justify-center space-y-4">
-          <Button
-            onClick={handleDownload}
-            size="lg"
-            className="h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform"
-            disabled={!proposal.pdfUrl}
-          >
-            <Download className="mr-2 h-5 w-5" />
-            {proposal.pdfUrl ? 'Baixar PDF' : 'Preparando PDF...'}
-          </Button>
+          {hasPdf ? (
+            <Button
+              onClick={handleDownload}
+              size="lg"
+              className="h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform"
+            >
+              <Download className="mr-2 h-5 w-5" />
+              Baixar PDF
+            </Button>
+          ) : (
+            <div className="text-center p-3 bg-yellow-50 text-yellow-700 rounded-md border border-yellow-100 text-sm mb-2">
+              PDF ainda não disponível para download direto.
+            </div>
+          )}
 
           {proposal.gammaUrl && (
             <Button
               onClick={handleOpenOnline}
-              variant="outline"
+              variant={hasPdf ? 'outline' : 'default'} // Promote this button if PDF is missing
               size="lg"
-              className="h-14 text-lg w-full bg-white hover:bg-slate-50 border-2"
+              className="h-14 text-lg w-full"
             >
               <ExternalLink className="mr-2 h-5 w-5" />
               Abrir no Gamma

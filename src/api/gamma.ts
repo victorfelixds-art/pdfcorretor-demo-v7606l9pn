@@ -1,37 +1,24 @@
 /**
- * SIMULATED BACKEND API
+ * BACKEND API PROXY
  *
- * This file acts as a mock server to handle Gamma API interactions securely.
- * In a production environment, this logic would reside in a Node.js/Edge function.
- * It intercepts requests to '/api/gamma/*' and simulates the server-side processing.
+ * This file acts as a secure proxy to the Gamma API.
+ * In this client-side demo, it calls the Gamma API directly.
+ * In a production environment, this would be a server-side function to protect the API Key.
  */
 
 import { ProposalFormValues, GammaGenerationResponse } from '@/types'
-import { formatCurrency, generateId } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-// --- BACKEND CONFIGURATION (Simulated) ---
+// --- BACKEND CONFIGURATION ---
 const GAMMA_API_KEY = import.meta.env.VITE_GAMMA_API_KEY
-const GAMMA_TEMPLATE_ID = 'j4euglofm0z6e7e'
-const PUBLIC_API_URL =
-  'https://public-api.gamma.app/v1.0/generations/from-template'
-
-// Simulated Database to persist job status
-const jobStore = new Map<
-  string,
-  {
-    status: 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
-    createdAt: number
-    pdfUrl?: string
-    gammaUrl?: string
-    logs: string[]
-  }
->()
+const GAMMA_TEMPLATE_ID =
+  import.meta.env.VITE_GAMMA_TEMPLATE_ID || 'j4euglofm0z6e7e'
+const BASE_API_URL = 'https://public-api.gamma.app/v1.0/generations'
 
 /**
  * Builds the prompt based on the specific template placeholders.
- * This function effectively runs "Server-Side".
  */
 function buildServerSidePrompt(data: ProposalFormValues): Record<string, any> {
   const economy = (data.originalValue || 0) - (data.discountedValue || 0)
@@ -61,18 +48,40 @@ function buildServerSidePrompt(data: ProposalFormValues): Record<string, any> {
 }
 
 /**
- * Router / Dispatcher for Simulated Backend Requests
+ * Extracts the PDF URL based on priority rules
+ */
+function extractPdfUrl(data: any): string | undefined {
+  // 1. exportUrl
+  if (data.exportUrl) return data.exportUrl
+  // 2. exports.pdf.url
+  if (data.exports?.pdf?.url) return data.exports.pdf.url
+  // 3. files.pdf.url
+  if (data.files?.pdf?.url) return data.files.pdf.url
+  // 4. Any other field within the export object
+  if (data.export?.url) return data.export.url
+  if (data.export?.pdf?.url) return data.export.pdf.url
+
+  return undefined
+}
+
+/**
+ * Extracts the Gamma URL (web view)
+ */
+function extractGammaUrl(data: any): string | undefined {
+  if (data.link) return data.link
+  if (data.url) return data.url
+  if (data.gammaUrl) return data.gammaUrl
+  return undefined
+}
+
+/**
+ * Router / Dispatcher for Backend Requests
  */
 export async function mockBackendFetch(
   endpoint: string,
   method: 'POST' | 'GET',
   body?: any,
 ): Promise<any> {
-  // Simulate network latency (500ms - 1500ms)
-  await new Promise((resolve) =>
-    setTimeout(resolve, 500 + Math.random() * 1000),
-  )
-
   console.log(`[BACKEND] ${method} ${endpoint}`)
 
   // Route: Generate
@@ -91,9 +100,9 @@ export async function mockBackendFetch(
 
 /**
  * Handler for POST /api/gamma/generate
+ * Calls the Real Gamma API
  */
 async function handleGenerateRequest(data: ProposalFormValues) {
-  // 1. Security Check
   if (!GAMMA_API_KEY) {
     throw {
       status: 500,
@@ -102,95 +111,107 @@ async function handleGenerateRequest(data: ProposalFormValues) {
   }
 
   try {
-    // 2. Build Payload
-    const placeholders = buildServerSidePrompt(data)
+    const dynamicData = buildServerSidePrompt(data)
 
+    // Construct the payload for Gamma API
     const payload = {
-      gammaId: GAMMA_TEMPLATE_ID,
-      exportAs: 'pdf',
-      ...placeholders,
+      templateId: GAMMA_TEMPLATE_ID,
+      exportAs: 'pdf', // Required by User Story
+      dynamicData: dynamicData,
     }
 
-    // 3. Log External Call (Simulated)
-    console.groupCollapsed('Backend: External API Call')
-    console.log(`POST ${PUBLIC_API_URL}`)
-    console.log('Headers:', { Authorization: 'Bearer ************' })
-    console.log('Body:', payload)
-    console.groupEnd()
-
-    // 4. Create Job (Simulated External Response)
-    const generationId = generateId()
-
-    // Store job in "Database"
-    jobStore.set(generationId, {
-      status: 'IN_PROGRESS',
-      createdAt: Date.now(),
-      logs: ['Job created', 'Sent to Gamma API'],
+    // Call Gamma API
+    const response = await fetch(`${BASE_API_URL}/from-template`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${GAMMA_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
     })
 
-    // Start background process to complete the job
-    simulateGammaProcessing(generationId)
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}))
+      throw {
+        status: response.status,
+        message: 'Gamma API Request Failed',
+        body: errorBody,
+      }
+    }
 
-    return { id: generationId }
+    const responseData = await response.json()
+
+    // Return the ID for polling
+    return { id: responseData.id }
   } catch (error: any) {
+    console.error('Generation Error:', error)
     throw {
-      status: 500,
-      message: 'Internal Server Error during generation',
-      body: error.message,
-      stack: error.stack,
+      status: error.status || 500,
+      message: error.message || 'Internal Server Error during generation',
+      body: error.body,
     }
   }
 }
 
 /**
  * Handler for GET /api/gamma/status/:id
+ * Polls the Real Gamma API
  */
 async function handleStatusRequest(
   generationId: string,
 ): Promise<GammaGenerationResponse> {
-  const job = jobStore.get(generationId)
-
-  if (!job) {
-    throw { status: 404, message: 'Generation Job not found' }
+  if (!GAMMA_API_KEY) {
+    throw { status: 500, message: 'GAMMA_API_KEY missing' }
   }
 
-  // Simulate server-side polling of Gamma
-  if (job.status === 'COMPLETED') {
-    return {
-      id: generationId,
-      status: 'COMPLETED',
-      output: {
-        pdf: { url: job.pdfUrl || '' },
-        gamma: { url: job.gammaUrl || '' },
+  try {
+    const response = await fetch(`${BASE_API_URL}/${generationId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${GAMMA_API_KEY}`,
       },
+    })
+
+    if (!response.ok) {
+      // If 404, return undefined or error
+      if (response.status === 404) {
+        throw { status: 404, message: 'Generation Job not found on Gamma' }
+      }
+      throw { status: response.status, message: 'Failed to check status' }
     }
-  } else if (job.status === 'FAILED') {
-    return { id: generationId, status: 'FAILED' }
+
+    const data = await response.json()
+    const status = data.status || 'IN_PROGRESS'
+
+    // Map the response to our internal structure
+    const result: GammaGenerationResponse = {
+      id: data.id,
+      status: status,
+    }
+
+    // If completed, extract URLs
+    if (status === 'COMPLETED' || status === 'completed') {
+      result.status = 'COMPLETED'
+      result.output = {
+        pdf: { url: extractPdfUrl(data) || '' },
+        gamma: { url: extractGammaUrl(data) || '' },
+      }
+    } else if (
+      status === 'ERROR' ||
+      status === 'error' ||
+      status === 'FAILED'
+    ) {
+      result.status = 'FAILED'
+    } else {
+      result.status = 'IN_PROGRESS'
+    }
+
+    return result
+  } catch (error: any) {
+    console.error('Status Check Error:', error)
+    throw error
   }
-
-  return { id: generationId, status: 'IN_PROGRESS' }
 }
 
-/**
- * Background Worker Simulation
- * Updates the job status after a delay to simulate Gamma processing time.
- */
-function simulateGammaProcessing(id: string) {
-  // 30% chance of "long processing", otherwise 5-8 seconds
-  const processingTime = 5000 + Math.random() * 3000
-
-  setTimeout(() => {
-    const job = jobStore.get(id)
-    if (job) {
-      job.status = 'COMPLETED'
-      job.pdfUrl =
-        'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf' // Mock PDF
-      job.gammaUrl = `https://gamma.app/docs/proposta-${id}` // Mock Gamma URL
-      jobStore.set(id, job)
-      console.log(`[BACKGROUND] Job ${id} completed`)
-    }
-  }, processingTime)
-}
-
-// Export a dummy for compatibility if needed, though we use mockBackendFetch mainly
+// Export for compatibility
 export const buildGammaPrompt = buildServerSidePrompt

@@ -53,6 +53,26 @@ export interface GammaGenerationResponse {
       url: string
     }
   }
+  // Flexible fields for extraction logic
+  link?: string
+  url?: string
+  exportUrl?: string
+  exports?: {
+    pdf?: {
+      url: string
+    }
+  }
+  files?: {
+    pdf?: {
+      url: string
+    }
+  }
+  export?: {
+    url?: string
+    pdf?: {
+      url: string
+    }
+  }
 }
 
 export interface BackendErrorLog {

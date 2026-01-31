@@ -70,10 +70,8 @@ export function ProposalProcessing({
     const process = async () => {
       try {
         // Step 1: Enviando (Sending)
-        addLog('Iniciando conexão segura (TLS 1.3)...', 'info')
+        addLog('Iniciando conexão segura...', 'info')
         addLog('POST /api/gamma/generate', 'info')
-
-        await new Promise((r) => setTimeout(r, 800)) // UX Delay
 
         let generationId: string
         try {
@@ -82,8 +80,8 @@ export function ProposalProcessing({
 
           if (!isMounted) return
           setCurrentStep(1) // Move to 'Gerando'
-          addLog(`HTTP 200 OK - Job Created: ${generationId}`, 'success')
-          addLog('Backend: Polling Gamma API status...', 'warning')
+          addLog(`Job Created: ${generationId}`, 'success')
+          addLog('Gamma API: Processing...', 'warning')
         } catch (apiError: any) {
           if (!isMounted) return
 
@@ -115,14 +113,14 @@ export function ProposalProcessing({
               addLog('Gamma API: Generation COMPLETED', 'success')
 
               if (statusResponse.output?.pdf?.url) {
-                addLog(
-                  `PDF Generated: ${statusResponse.output.pdf.url.substring(0, 30)}...`,
-                  'info',
-                )
+                addLog('PDF URL resolved successfully', 'success')
+              } else {
+                addLog('PDF URL not found in response', 'warning')
               }
 
               // Step 3: Finalizando (Finalizing)
-              await new Promise((r) => setTimeout(r, 1000))
+              // Small delay for UX transition
+              await new Promise((r) => setTimeout(r, 800))
 
               onComplete({
                 generationId: generationId,
@@ -134,7 +132,7 @@ export function ProposalProcessing({
             } else {
               // Still processing
               if (isMounted) {
-                addLog(`Polling Job ${generationId}... [${status}]`, 'warning')
+                // addLog(`Polling... [${status}]`, 'info') // Optional: reduce noise
                 pollingRef.current = setTimeout(poll, 3000)
               }
             }
@@ -148,7 +146,8 @@ export function ProposalProcessing({
           }
         }
 
-        poll()
+        // Start Polling
+        setTimeout(poll, 2000)
       } catch (err: any) {
         console.error(err)
         if (isMounted) {
@@ -190,11 +189,11 @@ export function ProposalProcessing({
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             Processando Proposta
             <span className="text-xs font-normal px-2 py-1 bg-slate-100 rounded-full text-slate-500 border">
-              v2.0 (Secure)
+              v2.1 (Live)
             </span>
           </h2>
           <p className="text-slate-500 mt-1">
-            Geração segura via servidor. Não feche esta página.
+            Geração em tempo real via Gamma AI. Aguarde...
           </p>
         </div>
 
@@ -244,10 +243,10 @@ export function ProposalProcessing({
                     {s.label}
                   </p>
                   <p className="text-xs text-slate-400 h-4">
-                    {isActive && index === 0 && 'Validando dados e template...'}
+                    {isActive && index === 0 && 'Conectando ao Gamma API...'}
                     {isActive &&
                       index === 1 &&
-                      'Solicitando renderização PDF...'}
+                      'Renderizando PDF no servidor...'}
                     {isActive && index === 2 && 'Obtendo link de download...'}
                     {isCompleted && 'Concluído'}
                   </p>
@@ -269,7 +268,7 @@ export function ProposalProcessing({
             <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 rounded text-emerald-400 border border-emerald-500/20">
               <Lock className="h-3 w-3" />
               <span className="text-[10px] font-semibold tracking-wider">
-                SECURE
+                TLS 1.3
               </span>
             </div>
             <div className="flex gap-1.5">
