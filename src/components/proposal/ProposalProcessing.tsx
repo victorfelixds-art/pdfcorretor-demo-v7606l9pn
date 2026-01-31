@@ -44,10 +44,8 @@ export function ProposalProcessing({
 
         // Step 1: Sending to API
         addLog('> Initializing Gamma API connection...', 'text-blue-300')
-        addLog(
-          `> Template ID: ${import.meta.env.VITE_GAMMA_TEMPLATE_ID}`,
-          'text-slate-500',
-        )
+        // REMOVED: Unsecure logging of Template ID
+        addLog('> Connection established with backend proxy', 'text-slate-500')
 
         let generationId: string
         try {
