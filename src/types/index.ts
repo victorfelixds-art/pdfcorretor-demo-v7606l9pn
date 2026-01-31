@@ -44,7 +44,7 @@ export interface Proposal extends ProposalFormValues {
 
 export interface GammaGenerationResponse {
   id: string
-  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETED' | 'ERROR'
+  status: 'QUEUED' | 'IN_PROGRESS' | 'COMPLETED' | 'ERROR' | 'FAILED'
   output?: {
     pdf?: {
       url: string

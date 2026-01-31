@@ -1,16 +1,17 @@
-import { ProposalFormValues } from '@/types'
+import { ProposalFormValues, GammaGenerationResponse } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 const GAMMA_API_KEY = import.meta.env.VITE_GAMMA_API_KEY
 const GAMMA_TEMPLATE_ID = import.meta.env.VITE_GAMMA_TEMPLATE_ID
+const GAMMA_API_BASE_URL = 'https://public-api.gamma.app/v1.0'
 
 export function buildGammaPrompt(data: ProposalFormValues): string {
   const economy = (data.originalValue || 0) - (data.discountedValue || 0)
 
   // Explicit mapping of fields to placeholders as per requirements
-  const placeholders = {
+  const placeholders: Record<string, string | number> = {
     '{{NOME_CLIENTE}}': data.clientName,
     '{{VALOR_ORIGINAL}}': formatCurrency(data.originalValue),
     '{{VALOR_COM_DESCONTO}}': formatCurrency(data.discountedValue),
@@ -44,14 +45,16 @@ export function buildGammaPrompt(data: ProposalFormValues): string {
   return promptLines.join('\n')
 }
 
-export async function triggerGammaGeneration(data: ProposalFormValues) {
+export async function triggerGammaGeneration(
+  data: ProposalFormValues,
+): Promise<{ id: string }> {
   if (!GAMMA_API_KEY) throw new Error('API Key configuration missing')
   if (!GAMMA_TEMPLATE_ID) throw new Error('Template ID configuration missing')
 
   const prompt = buildGammaPrompt(data)
 
   const response = await fetch(
-    'https://public-api.gamma.app/v1.0/generations/from-template',
+    `${GAMMA_API_BASE_URL}/generations/from-template`,
     {
       method: 'POST',
       headers: {
@@ -67,18 +70,22 @@ export async function triggerGammaGeneration(data: ProposalFormValues) {
   )
 
   if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.message || 'Failed to start generation')
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(
+      errorData.message || `Failed to start generation (${response.status})`,
+    )
   }
 
   return await response.json()
 }
 
-export async function checkGammaStatus(generationId: string) {
+export async function checkGammaStatus(
+  generationId: string,
+): Promise<GammaGenerationResponse> {
   if (!GAMMA_API_KEY) throw new Error('API Key configuration missing')
 
   const response = await fetch(
-    `https://public-api.gamma.app/v1.0/generations/${generationId}`,
+    `${GAMMA_API_BASE_URL}/generations/${generationId}`,
     {
       method: 'GET',
       headers: {
@@ -88,7 +95,7 @@ export async function checkGammaStatus(generationId: string) {
   )
 
   if (!response.ok) {
-    throw new Error('Failed to check status')
+    throw new Error(`Failed to check status (${response.status})`)
   }
 
   return await response.json()

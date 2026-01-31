@@ -35312,11 +35312,65 @@ function ProposalForm({ form, onSubmit }) {
 		})
 	});
 }
+var GAMMA_API_KEY = "sk-gamma-OAzDPemeuZF5swaAvltkI4afOgbuEUuV8DoUysT7pA";
+var GAMMA_TEMPLATE_ID = "j4euglofm0z6e7e";
+var GAMMA_API_BASE_URL = "https://public-api.gamma.app/v1.0";
+function buildGammaPrompt(data) {
+	const economy = (data.originalValue || 0) - (data.discountedValue || 0);
+	const placeholders = {
+		"{{NOME_CLIENTE}}": data.clientName,
+		"{{VALOR_ORIGINAL}}": formatCurrency(data.originalValue),
+		"{{VALOR_COM_DESCONTO}}": formatCurrency(data.discountedValue),
+		"{{UNIDADE}}": data.unit,
+		"{{METRAGEM}}": `${data.area}m²`,
+		"{{ECONOMIA}}": formatCurrency(economy),
+		"{{ITEM_1}}": data.items[0],
+		"{{ITEM_2}}": data.items[1],
+		"{{ITEM_3}}": data.items[2],
+		"{{ITEM_4}}": data.items[3],
+		"{{ITEM_5}}": data.items[4],
+		"{{ITEM_6}}": data.items[5],
+		"{{NOME_CORRETOR}}": data.brokerName,
+		"{{CRECI_CORRETOR}}": data.brokerCreci,
+		"{{VALIDADE_PROPOSTA}}": format(data.validity, "dd/MM/yyyy", { locale: ptBR })
+	};
+	return [
+		"Use este documento como template fixo",
+		"Substitua SOMENTE os placeholders listados abaixo pelos valores indicados.",
+		"Não altere layout, cores, fontes, espaçamentos, tamanhos, nem ordem.",
+		"Não adicione novos elementos.",
+		"",
+		"PLACEHOLDERS:",
+		...Object.entries(placeholders).map(([key, value]) => `${key}: ${value}`)
+	].join("\n");
+}
 async function triggerGammaGeneration(data) {
-	throw new Error("API Key configuration missing");
+	const prompt = buildGammaPrompt(data);
+	const response = await fetch(`${GAMMA_API_BASE_URL}/generations/from-template`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-API-KEY": GAMMA_API_KEY
+		},
+		body: JSON.stringify({
+			gammaId: GAMMA_TEMPLATE_ID,
+			prompt,
+			exportAs: "pdf"
+		})
+	});
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(errorData.message || `Failed to start generation (${response.status})`);
+	}
+	return await response.json();
 }
 async function checkGammaStatus(generationId) {
-	throw new Error("API Key configuration missing");
+	const response = await fetch(`${GAMMA_API_BASE_URL}/generations/${generationId}`, {
+		method: "GET",
+		headers: { "X-API-KEY": GAMMA_API_KEY }
+	});
+	if (!response.ok) throw new Error(`Failed to check status (${response.status})`);
+	return await response.json();
 }
 function ProposalProcessing({ data, onComplete }) {
 	const [currentStep, setCurrentStep] = (0, import_react.useState)(0);
@@ -35355,28 +35409,36 @@ function ProposalProcessing({ data, onComplete }) {
 				addLog("> Validation successful", "text-green-400");
 				addLog("> Initializing Gamma API connection...", "text-blue-300");
 				addLog(`> Template ID: j4euglofm0z6e7e`, "text-slate-500");
-				const generationId = (await triggerGammaGeneration(data)).id;
-				if (!isMounted) return;
-				setCurrentStep(2);
-				addLog(`> Generation started: ${generationId}`, "text-purple-300");
-				addLog("> Waiting for PDF rendering...", "text-purple-300");
+				let generationId;
+				try {
+					generationId = (await triggerGammaGeneration(data)).id;
+					if (!isMounted) return;
+					setCurrentStep(2);
+					addLog(`> Generation started: ${generationId}`, "text-purple-300");
+					addLog("> Waiting for PDF rendering...", "text-purple-300");
+				} catch (apiError) {
+					if (!isMounted) return;
+					addLog(`> API Error: ${apiError.message}`, "text-red-500");
+					throw apiError;
+				}
 				const poll = async () => {
 					try {
+						if (!isMounted) return;
 						const statusResponse = await checkGammaStatus(generationId);
 						const status = statusResponse.status;
 						if (status === "COMPLETED") {
 							if (!isMounted) return;
 							setCurrentStep(3);
 							addLog("> Generation completed successfully!", "text-green-400");
-							addLog(`> PDF URL: ${statusResponse.output?.pdf?.url?.substring(0, 40)}...`, "text-slate-500");
+							if (statusResponse.output?.pdf?.url) addLog(`> PDF URL: ${statusResponse.output.pdf.url.substring(0, 40)}...`, "text-slate-500");
 							setTimeout(() => {
 								onComplete({
 									generationId,
 									pdfUrl: statusResponse.output?.pdf?.url,
 									gammaUrl: statusResponse.output?.gamma?.url
 								});
-							}, 1e3);
-						} else if (status === "ERROR" || status === "FAILED") throw new Error("Gamma generation failed");
+							}, 1500);
+						} else if (status === "ERROR" || status === "FAILED") throw new Error("Gamma generation status: FAILED");
 						else if (isMounted) {
 							addLog(`> Status: ${status} - Polling...`, "text-slate-500");
 							pollingRef.current = setTimeout(poll, 2e3);
@@ -35384,8 +35446,9 @@ function ProposalProcessing({ data, onComplete }) {
 					} catch (err) {
 						console.error(err);
 						if (isMounted) {
-							setError("Erro ao verificar status da geração.");
-							addLog("> Error polling status", "text-red-500");
+							setError(err.message || "Erro ao verificar status da geração.");
+							addLog(`> Error polling status: ${err.message}`, "text-red-500");
+							toast.error("Erro na comunicação com Gamma API");
 						}
 					}
 				};
@@ -35394,7 +35457,7 @@ function ProposalProcessing({ data, onComplete }) {
 				console.error(err);
 				if (isMounted) {
 					setError(err.message || "Ocorreu um erro inesperado.");
-					addLog(`> Error: ${err.message}`, "text-red-500");
+					addLog(`> Fatal Error: ${err.message}`, "text-red-500");
 					toast.error("Falha na geração da proposta");
 				}
 			}
@@ -35424,7 +35487,7 @@ function ProposalProcessing({ data, onComplete }) {
 						children: "Processando Proposta"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-slate-500",
-						children: "Integração Gamma AI v1.0 em andamento."
+						children: "Integração Gamma API v1.0 em andamento."
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -35492,7 +35555,6 @@ function ProposalDelivery({ proposal, onReset }) {
 	};
 	const handleOpenOnline = () => {
 		if (proposal.gammaUrl) window.open(proposal.gammaUrl, "_blank", "noopener,noreferrer");
-		else window.open(`/print/${proposal.id}`, "_blank", "noopener,noreferrer");
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "flex flex-col items-center justify-center py-10 animate-in fade-in slide-in-from-bottom-4 duration-500",
@@ -35507,7 +35569,7 @@ function ProposalDelivery({ proposal, onReset }) {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "text-slate-500 mb-10 text-center max-w-md",
-				children: "O documento PDF foi criado via Gamma AI e está pronto para entrega."
+				children: "O documento PDF foi criado via Gamma API e está pronto para entrega."
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "grid md:grid-cols-2 gap-8 w-full max-w-4xl mb-12",
@@ -35579,14 +35641,13 @@ function ProposalDelivery({ proposal, onReset }) {
 							size: "lg",
 							className: "h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform",
 							disabled: !proposal.pdfUrl && !proposal.id,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-5 w-5" }), "Baixar PDF"]
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-5 w-5" }), proposal.pdfUrl ? "Baixar PDF Oficial" : "Baixar PDF (Local)"]
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Button, {
+						proposal.gammaUrl && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Button, {
 							onClick: handleOpenOnline,
 							variant: "outline",
 							size: "lg",
 							className: "h-14 text-lg w-full bg-white hover:bg-slate-50",
-							disabled: !proposal.gammaUrl && !proposal.id,
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "mr-2 h-5 w-5" }), "Abrir versão online"]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -38563,4 +38624,4 @@ var App = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BrowserRouter, {
 var App_default = App;
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App_default, {}));
 
-//# sourceMappingURL=index-BvpUcAy0.js.map
+//# sourceMappingURL=index-HMSmgSa8.js.map

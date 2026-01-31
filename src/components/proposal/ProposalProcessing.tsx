@@ -10,8 +10,6 @@ interface ProposalProcessingProps {
   onComplete: (result: Partial<Proposal>) => void
 }
 
-type StepStatus = 'pending' | 'processing' | 'completed' | 'error'
-
 export function ProposalProcessing({
   data,
   onComplete,
@@ -51,17 +49,25 @@ export function ProposalProcessing({
           'text-slate-500',
         )
 
-        const generationResponse = await triggerGammaGeneration(data)
-        const generationId = generationResponse.id
-
-        if (!isMounted) return
-        setCurrentStep(2)
-        addLog(`> Generation started: ${generationId}`, 'text-purple-300')
-        addLog('> Waiting for PDF rendering...', 'text-purple-300')
+        let generationId: string
+        try {
+          const generationResponse = await triggerGammaGeneration(data)
+          generationId = generationResponse.id
+          if (!isMounted) return
+          setCurrentStep(2)
+          addLog(`> Generation started: ${generationId}`, 'text-purple-300')
+          addLog('> Waiting for PDF rendering...', 'text-purple-300')
+        } catch (apiError: any) {
+          if (!isMounted) return
+          addLog(`> API Error: ${apiError.message}`, 'text-red-500')
+          throw apiError
+        }
 
         // Step 2: Polling
         const poll = async () => {
           try {
+            if (!isMounted) return
+
             const statusResponse = await checkGammaStatus(generationId)
             const status = statusResponse.status
 
@@ -69,10 +75,13 @@ export function ProposalProcessing({
               if (!isMounted) return
               setCurrentStep(3)
               addLog('> Generation completed successfully!', 'text-green-400')
-              addLog(
-                `> PDF URL: ${statusResponse.output?.pdf?.url?.substring(0, 40)}...`,
-                'text-slate-500',
-              )
+
+              if (statusResponse.output?.pdf?.url) {
+                addLog(
+                  `> PDF URL: ${statusResponse.output.pdf.url.substring(0, 40)}...`,
+                  'text-slate-500',
+                )
+              }
 
               // Give a small delay for UI smoothness
               setTimeout(() => {
@@ -81,9 +90,9 @@ export function ProposalProcessing({
                   pdfUrl: statusResponse.output?.pdf?.url,
                   gammaUrl: statusResponse.output?.gamma?.url,
                 })
-              }, 1000)
+              }, 1500)
             } else if (status === 'ERROR' || status === 'FAILED') {
-              throw new Error('Gamma generation failed')
+              throw new Error('Gamma generation status: FAILED')
             } else {
               // Still processing
               if (isMounted) {
@@ -91,11 +100,12 @@ export function ProposalProcessing({
                 pollingRef.current = setTimeout(poll, 2000)
               }
             }
-          } catch (err) {
+          } catch (err: any) {
             console.error(err)
             if (isMounted) {
-              setError('Erro ao verificar status da geração.')
-              addLog('> Error polling status', 'text-red-500')
+              setError(err.message || 'Erro ao verificar status da geração.')
+              addLog(`> Error polling status: ${err.message}`, 'text-red-500')
+              toast.error('Erro na comunicação com Gamma API')
             }
           }
         }
@@ -105,7 +115,7 @@ export function ProposalProcessing({
         console.error(err)
         if (isMounted) {
           setError(err.message || 'Ocorreu um erro inesperado.')
-          addLog(`> Error: ${err.message}`, 'text-red-500')
+          addLog(`> Fatal Error: ${err.message}`, 'text-red-500')
           toast.error('Falha na geração da proposta')
         }
       }
@@ -135,7 +145,7 @@ export function ProposalProcessing({
             Processando Proposta
           </h2>
           <p className="text-slate-500">
-            Integração Gamma AI v1.0 em andamento.
+            Integração Gamma API v1.0 em andamento.
           </p>
         </div>
 

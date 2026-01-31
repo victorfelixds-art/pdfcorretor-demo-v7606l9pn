@@ -14,7 +14,7 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
     if (proposal.pdfUrl) {
       window.open(proposal.pdfUrl, '_blank', 'noopener,noreferrer')
     } else {
-      // Fallback for older/mocked proposals
+      // Fallback
       window.open(`/print/${proposal.id}`, '_blank', 'noopener,noreferrer')
     }
   }
@@ -22,8 +22,6 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
   const handleOpenOnline = () => {
     if (proposal.gammaUrl) {
       window.open(proposal.gammaUrl, '_blank', 'noopener,noreferrer')
-    } else {
-      window.open(`/print/${proposal.id}`, '_blank', 'noopener,noreferrer')
     }
   }
 
@@ -37,7 +35,7 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
         Proposta gerada com sucesso!
       </h2>
       <p className="text-slate-500 mb-10 text-center max-w-md">
-        O documento PDF foi criado via Gamma AI e está pronto para entrega.
+        O documento PDF foi criado via Gamma API e está pronto para entrega.
       </p>
 
       <div className="grid md:grid-cols-2 gap-8 w-full max-w-4xl mb-12">
@@ -87,19 +85,20 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
             disabled={!proposal.pdfUrl && !proposal.id}
           >
             <Download className="mr-2 h-5 w-5" />
-            Baixar PDF
+            {proposal.pdfUrl ? 'Baixar PDF Oficial' : 'Baixar PDF (Local)'}
           </Button>
 
-          <Button
-            onClick={handleOpenOnline}
-            variant="outline"
-            size="lg"
-            className="h-14 text-lg w-full bg-white hover:bg-slate-50"
-            disabled={!proposal.gammaUrl && !proposal.id}
-          >
-            <ExternalLink className="mr-2 h-5 w-5" />
-            Abrir versão online
-          </Button>
+          {proposal.gammaUrl && (
+            <Button
+              onClick={handleOpenOnline}
+              variant="outline"
+              size="lg"
+              className="h-14 text-lg w-full bg-white hover:bg-slate-50"
+            >
+              <ExternalLink className="mr-2 h-5 w-5" />
+              Abrir versão online
+            </Button>
+          )}
 
           <div className="pt-4">
             <Button
