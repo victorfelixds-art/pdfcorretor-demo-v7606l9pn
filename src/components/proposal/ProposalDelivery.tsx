@@ -13,9 +13,6 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
   const handleDownload = () => {
     if (proposal.pdfUrl) {
       window.open(proposal.pdfUrl, '_blank', 'noopener,noreferrer')
-    } else {
-      // Fallback
-      window.open(`/print/${proposal.id}`, '_blank', 'noopener,noreferrer')
     }
   }
 
@@ -76,10 +73,10 @@ export function ProposalDelivery({ proposal, onReset }: ProposalDeliveryProps) {
             onClick={handleDownload}
             size="lg"
             className="h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform"
-            disabled={!proposal.pdfUrl && !proposal.id}
+            disabled={!proposal.pdfUrl}
           >
             <Download className="mr-2 h-5 w-5" />
-            Baixar PDF
+            {proposal.pdfUrl ? 'Baixar PDF' : 'Preparando PDF...'}
           </Button>
 
           {proposal.gammaUrl && (

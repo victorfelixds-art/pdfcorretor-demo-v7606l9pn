@@ -35325,7 +35325,9 @@ function ProposalForm({ form, onSubmit }) {
 		})
 	});
 }
+var GAMMA_API_KEY = "sk-gamma-OAzDPemeuZF5swaAvltkI4afOgbuEUuV8DoUysT7pA";
 var GAMMA_TEMPLATE_ID = "j4euglofm0z6e7e";
+var API_BASE_URL = "https://gamma.app/api/v1.0";
 function buildGammaPrompt(data) {
 	const economy = (data.originalValue || 0) - (data.discountedValue || 0);
 	const placeholders = {
@@ -35355,37 +35357,97 @@ function buildGammaPrompt(data) {
 		...Object.entries(placeholders).map(([key, value]) => `${key}: ${value}`)
 	].join("\n");
 }
-async function mockServerSideGeneration(prompt) {
-	console.log("--- MOCK SERVER REQUEST ---");
-	console.log("POST /api/gamma/generate");
-	console.log("Payload:", {
-		gammaId: GAMMA_TEMPLATE_ID,
-		exportAs: "pdf",
-		prompt: prompt.substring(0, 50) + "..."
+async function createGeneration(data) {
+	const prompt = buildGammaPrompt(data);
+	const response = await fetch(`${API_BASE_URL}/generations`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${GAMMA_API_KEY}`,
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify({
+			prompt,
+			source_deck_id: GAMMA_TEMPLATE_ID
+		})
 	});
-	await new Promise((resolve) => setTimeout(resolve, 1500));
-	return { id: `mock-gen-${Date.now()}` };
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		console.error("Gamma API Generation Error:", errorData);
+		throw new Error(errorData.message || "Falha ao iniciar geração na Gamma API");
+	}
+	return { id: (await response.json()).id };
 }
-async function mockCheckStatus(generationId) {
-	const timestamp = parseInt(generationId.split("-")[2]);
-	if (Date.now() - timestamp < 6e3) return {
+async function checkStatus(generationId) {
+	const response = await fetch(`${API_BASE_URL}/generations/${generationId}`, {
+		method: "GET",
+		headers: { Authorization: `Bearer ${GAMMA_API_KEY}` }
+	});
+	if (!response.ok) throw new Error("Falha ao verificar status da geração");
+	const data = await response.json();
+	const apiStatus = data.status;
+	let status = "IN_PROGRESS";
+	if (apiStatus === "COMPLETED" || apiStatus === "DONE") status = "COMPLETED";
+	else if (apiStatus === "ERROR" || apiStatus === "FAILED") return {
 		id: generationId,
-		status: "IN_PROGRESS"
+		status: "FAILED"
 	};
 	else return {
 		id: generationId,
+		status: "IN_PROGRESS"
+	};
+	const pdfUrl = data.exports?.pdf?.url;
+	const gammaUrl = data.url;
+	if (status === "COMPLETED") if (pdfUrl) return {
+		id: generationId,
 		status: "COMPLETED",
 		output: {
-			pdf: { url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
-			gamma: { url: "https://gamma.app" }
+			pdf: { url: pdfUrl },
+			gamma: { url: gammaUrl }
 		}
 	};
-}
-async function createGeneration(data) {
-	return mockServerSideGeneration(buildGammaPrompt(data));
-}
-async function checkStatus(generationId) {
-	return mockCheckStatus(generationId);
+	else {
+		const exportStatus = data.exports?.pdf?.status;
+		if (!data.exports?.pdf) try {
+			await fetch(`${API_BASE_URL}/generations/${generationId}/exports`, {
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${GAMMA_API_KEY}`,
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({ format: "pdf" })
+			});
+			return {
+				id: generationId,
+				status: "IN_PROGRESS"
+			};
+		} catch (err) {
+			console.error("Export Trigger Error:", err);
+			return {
+				id: generationId,
+				status: "IN_PROGRESS"
+			};
+		}
+		else if (exportStatus === "FAILED") return {
+			id: generationId,
+			status: "ERROR"
+		};
+		else if (exportStatus === "COMPLETED") return {
+			id: generationId,
+			status: "COMPLETED",
+			output: {
+				pdf: { url: data.exports.pdf.url },
+				gamma: { url: gammaUrl }
+			}
+		};
+		else return {
+			id: generationId,
+			status: "IN_PROGRESS"
+		};
+	}
+	return {
+		id: generationId,
+		status: "IN_PROGRESS"
+	};
 }
 async function triggerGammaGeneration(data) {
 	return createGeneration(data);
@@ -35558,7 +35620,6 @@ function ProposalProcessing({ data, onComplete }) {
 function ProposalDelivery({ proposal, onReset }) {
 	const handleDownload = () => {
 		if (proposal.pdfUrl) window.open(proposal.pdfUrl, "_blank", "noopener,noreferrer");
-		else window.open(`/print/${proposal.id}`, "_blank", "noopener,noreferrer");
 	};
 	const handleOpenOnline = () => {
 		if (proposal.gammaUrl) window.open(proposal.gammaUrl, "_blank", "noopener,noreferrer");
@@ -35643,8 +35704,8 @@ function ProposalDelivery({ proposal, onReset }) {
 							onClick: handleDownload,
 							size: "lg",
 							className: "h-14 text-lg w-full shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform",
-							disabled: !proposal.pdfUrl && !proposal.id,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-5 w-5" }), "Baixar PDF"]
+							disabled: !proposal.pdfUrl,
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "mr-2 h-5 w-5" }), proposal.pdfUrl ? "Baixar PDF" : "Preparando PDF..."]
 						}),
 						proposal.gammaUrl && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Button, {
 							onClick: handleOpenOnline,
@@ -38650,4 +38711,4 @@ var App = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BrowserRouter, {
 var App_default = App;
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App_default, {}));
 
-//# sourceMappingURL=index-BKZKbH5W.js.map
+//# sourceMappingURL=index-DftNSP1i.js.map

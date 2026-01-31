@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale'
 const GAMMA_API_KEY = import.meta.env.VITE_GAMMA_API_KEY
 const GAMMA_TEMPLATE_ID =
   import.meta.env.VITE_GAMMA_TEMPLATE_ID || 'j4euglofm0z6e7e'
+const API_BASE_URL = 'https://gamma.app/api/v1.0'
 
 /**
  * Builds the strict prompt required by Gamma API
@@ -50,82 +51,131 @@ export function buildGammaPrompt(data: ProposalFormValues): string {
 }
 
 /**
- * Simulates the server-side route /api/gamma/generate
- * This is necessary because we are in a pure frontend environment (Vite)
- * and cannot actually implement a server-side route.
- * In a real Next.js or Node.js app, this logic would reside on the server.
- */
-async function mockServerSideGeneration(
-  prompt: string,
-): Promise<{ id: string }> {
-  console.log('--- MOCK SERVER REQUEST ---')
-  console.log('POST /api/gamma/generate')
-  console.log('Payload:', {
-    gammaId: GAMMA_TEMPLATE_ID,
-    exportAs: 'pdf',
-    prompt: prompt.substring(0, 50) + '...',
-  })
-
-  // Simulate network latency
-  await new Promise((resolve) => setTimeout(resolve, 1500))
-
-  return { id: `mock-gen-${Date.now()}` }
-}
-
-/**
- * Simulates the polling of the Gamma API status
- */
-async function mockCheckStatus(
-  generationId: string,
-): Promise<GammaGenerationResponse> {
-  const timestamp = parseInt(generationId.split('-')[2])
-  const elapsed = Date.now() - timestamp
-
-  // Simulate processing time (approx 6 seconds total)
-  if (elapsed < 6000) {
-    return { id: generationId, status: 'IN_PROGRESS' }
-  } else {
-    return {
-      id: generationId,
-      status: 'COMPLETED',
-      output: {
-        pdf: {
-          url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-        },
-        gamma: { url: 'https://gamma.app' },
-      },
-    }
-  }
-}
-
-/**
- * Initiates the generation process.
- * This acts as the client-side consumer of the /api/gamma/generate endpoint.
+ * Initiates the generation process via Gamma API.
  */
 export async function createGeneration(
   data: ProposalFormValues,
 ): Promise<{ id: string }> {
-  if (!GAMMA_API_KEY) console.warn('API Key configuration missing (Simulated)')
+  if (!GAMMA_API_KEY) {
+    throw new Error('Chave de API Gamma não configurada')
+  }
 
   const prompt = buildGammaPrompt(data)
 
-  // In a real app, this would be:
-  // const response = await fetch('/api/gamma/generate', { method: 'POST', body: ... })
-  // return response.json()
+  const response = await fetch(`${API_BASE_URL}/generations`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GAMMA_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt: prompt,
+      source_deck_id: GAMMA_TEMPLATE_ID,
+    }),
+  })
 
-  return mockServerSideGeneration(prompt)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    console.error('Gamma API Generation Error:', errorData)
+    throw new Error(
+      errorData.message || 'Falha ao iniciar geração na Gamma API',
+    )
+  }
+
+  const json = await response.json()
+  return { id: json.id }
 }
 
 /**
- * Checks the status of the generation.
- * This acts as the client-side consumer of the /api/gamma/status/:id endpoint.
+ * Checks the status of the generation and retrieves the PDF URL.
+ * Handles fallback export triggering if PDF is not automatically generated.
  */
 export async function checkStatus(
   generationId: string,
 ): Promise<GammaGenerationResponse> {
-  // In a real app, this would be:
-  // const response = await fetch(`/api/gamma/status/${generationId}`)
-  // return response.json()
+  const response = await fetch(`${API_BASE_URL}/generations/${generationId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${GAMMA_API_KEY}`,
+    },
+  })
 
-  return mockCheckStatus(generationId)
+  if (!response.ok) {
+    throw new Error('Falha ao verificar status da geração')
+  }
+
+  const data = await response.json()
+
+  // Normalize status
+  const apiStatus = data.status // PLANNING, GENERATING, COMPLETED, ERROR
+  let status: GammaGenerationResponse['status'] = 'IN_PROGRESS'
+
+  if (apiStatus === 'COMPLETED' || apiStatus === 'DONE') {
+    status = 'COMPLETED'
+  } else if (apiStatus === 'ERROR' || apiStatus === 'FAILED') {
+    return { id: generationId, status: 'FAILED' }
+  } else {
+    return { id: generationId, status: 'IN_PROGRESS' }
+  }
+
+  // Retrieve URLs
+  const pdfUrl = data.exports?.pdf?.url
+  const gammaUrl = data.url
+
+  // If completed, ensure PDF is available
+  if (status === 'COMPLETED') {
+    if (pdfUrl) {
+      return {
+        id: generationId,
+        status: 'COMPLETED',
+        output: {
+          pdf: { url: pdfUrl },
+          gamma: { url: gammaUrl },
+        },
+      }
+    } else {
+      // PDF URL not found, check if we need to trigger export
+      // This covers the "Fallback URL Retrieval" requirement
+
+      const exportStatus = data.exports?.pdf?.status
+
+      if (!data.exports?.pdf) {
+        // Trigger new export
+        try {
+          await fetch(`${API_BASE_URL}/generations/${generationId}/exports`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${GAMMA_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ format: 'pdf' }),
+          })
+          // Return IN_PROGRESS to allow polling to continue and pick up the new export
+          return { id: generationId, status: 'IN_PROGRESS' }
+        } catch (err) {
+          console.error('Export Trigger Error:', err)
+          // If trigger fails, we can't do much but retry or fail.
+          // Returning IN_PROGRESS keeps the loop alive.
+          return { id: generationId, status: 'IN_PROGRESS' }
+        }
+      } else if (exportStatus === 'FAILED') {
+        return { id: generationId, status: 'ERROR' }
+      } else if (exportStatus === 'COMPLETED') {
+        // Should have been caught by pdfUrl check, but strictly:
+        return {
+          id: generationId,
+          status: 'COMPLETED',
+          output: {
+            pdf: { url: data.exports.pdf.url },
+            gamma: { url: gammaUrl },
+          },
+        }
+      } else {
+        // Export is processing (IN_PROGRESS, PENDING, etc)
+        return { id: generationId, status: 'IN_PROGRESS' }
+      }
+    }
+  }
+
+  return { id: generationId, status: 'IN_PROGRESS' }
 }
