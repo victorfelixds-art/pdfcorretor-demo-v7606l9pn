@@ -55,7 +55,15 @@ export interface GammaGenerationResponse {
   }
 }
 
+export interface BackendErrorLog {
+  status: number
+  message: string
+  body?: any
+  stack?: string
+}
+
 export interface GammaError {
   message: string
   code?: string
+  details?: BackendErrorLog
 }

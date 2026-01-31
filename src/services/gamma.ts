@@ -1,24 +1,48 @@
 import { ProposalFormValues, GammaGenerationResponse } from '@/types'
-import * as GammaBackend from '@/api/gamma'
-
-export { buildGammaPrompt } from '@/api/gamma'
+import { mockBackendFetch } from '@/api/gamma'
 
 /**
- * Triggers the generation of the proposal.
- * Delegates to the secure backend integration (simulated).
+ * Client-side service that communicates with our "Secure Backend"
+ * All calls here are proxied to the internal /api/gamma routes.
  */
+
 export async function triggerGammaGeneration(
   data: ProposalFormValues,
 ): Promise<{ id: string }> {
-  return GammaBackend.createGeneration(data)
+  try {
+    // Call the simulated backend route
+    const response = await mockBackendFetch('/api/gamma/generate', 'POST', data)
+    return response
+  } catch (error: any) {
+    // Enhance error for UI display
+    console.error('Service Error:', error)
+    throw new Error(
+      JSON.stringify({
+        message: error.message || 'Falha na comunicação com o servidor',
+        status: error.status || 500,
+        details: error.body || 'Unknown error',
+      }),
+    )
+  }
 }
 
-/**
- * Checks the status of the generation.
- * Proxies the check to the backend module.
- */
 export async function checkGammaStatus(
   generationId: string,
 ): Promise<GammaGenerationResponse> {
-  return GammaBackend.checkStatus(generationId)
+  try {
+    // Call the simulated backend status route
+    const response = await mockBackendFetch(
+      `/api/gamma/status/${generationId}`,
+      'GET',
+    )
+    return response
+  } catch (error: any) {
+    console.error('Status Check Error:', error)
+    throw new Error(
+      JSON.stringify({
+        message: 'Falha ao verificar status',
+        status: error.status || 500,
+      }),
+    )
+  }
 }

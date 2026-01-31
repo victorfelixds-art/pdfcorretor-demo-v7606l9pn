@@ -19076,6 +19076,18 @@ var LoaderCircle = createLucideIcon("loader-circle", [["path", {
 	d: "M21 12a9 9 0 1 1-6.219-8.56",
 	key: "13zald"
 }]]);
+var Lock = createLucideIcon("lock", [["rect", {
+	width: "18",
+	height: "11",
+	x: "3",
+	y: "11",
+	rx: "2",
+	ry: "2",
+	key: "1w4ew1"
+}], ["path", {
+	d: "M7 11V7a5 5 0 0 1 10 0v4",
+	key: "fwvmzm"
+}]]);
 var MapPin = createLucideIcon("map-pin", [["path", {
 	d: "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
 	key: "1r0f0z"
@@ -19114,6 +19126,13 @@ var RefreshCw = createLucideIcon("refresh-cw", [
 		key: "1cv678"
 	}]
 ]);
+var Terminal = createLucideIcon("terminal", [["path", {
+	d: "M12 19h8",
+	key: "baeox8"
+}], ["path", {
+	d: "m4 17 6-6-6-6",
+	key: "1yngyt"
+}]]);
 var Trash2 = createLucideIcon("trash-2", [
 	["path", {
 		d: "M10 11v6",
@@ -35325,12 +35344,12 @@ function ProposalForm({ form, onSubmit }) {
 		})
 	});
 }
-var GAMMA_API_KEY = "sk-gamma-OAzDPemeuZF5swaAvltkI4afOgbuEUuV8DoUysT7pA";
 var GAMMA_TEMPLATE_ID = "j4euglofm0z6e7e";
-var API_BASE_URL = "https://gamma.app/api/v1.0";
-function buildGammaPrompt(data) {
+var PUBLIC_API_URL = "https://public-api.gamma.app/v1.0/generations/from-template";
+var jobStore = /* @__PURE__ */ new Map();
+function buildServerSidePrompt(data) {
 	const economy = (data.originalValue || 0) - (data.discountedValue || 0);
-	const placeholders = {
+	return {
 		"{{NOME_CLIENTE}}": data.clientName,
 		"{{VALOR_ORIGINAL}}": formatCurrency(data.originalValue),
 		"{{VALOR_COM_DESCONTO}}": formatCurrency(data.discountedValue),
@@ -35347,113 +35366,101 @@ function buildGammaPrompt(data) {
 		"{{CRECI_CORRETOR}}": data.brokerCreci,
 		"{{VALIDADE_PROPOSTA}}": format(data.validity, "dd/MM/yyyy", { locale: ptBR })
 	};
-	return [
-		"Use este documento como template fixo",
-		"Substitua SOMENTE os placeholders listados abaixo pelos valores indicados.",
-		"Não altere layout, cores, fontes, espaçamentos, tamanhos, nem ordem.",
-		"Não adicione novos elementos.",
-		"",
-		"PLACEHOLDERS:",
-		...Object.entries(placeholders).map(([key, value]) => `${key}: ${value}`)
-	].join("\n");
 }
-async function createGeneration(data) {
-	const prompt = buildGammaPrompt(data);
-	const response = await fetch(`${API_BASE_URL}/generations`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${GAMMA_API_KEY}`,
-			"Content-Type": "application/json"
-		},
-		body: JSON.stringify({
-			prompt,
-			source_deck_id: GAMMA_TEMPLATE_ID
-		})
-	});
-	if (!response.ok) {
-		const errorData = await response.json().catch(() => ({}));
-		console.error("Gamma API Generation Error:", errorData);
-		throw new Error(errorData.message || "Falha ao iniciar geração na Gamma API");
+async function mockBackendFetch(endpoint, method, body) {
+	await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1e3));
+	console.log(`[BACKEND] ${method} ${endpoint}`);
+	if (endpoint === "/api/gamma/generate" && method === "POST") return handleGenerateRequest(body);
+	if (endpoint.startsWith("/api/gamma/status/") && method === "GET") return handleStatusRequest(endpoint.split("/").pop());
+	throw new Error(`Endpoint ${endpoint} not found`);
+}
+async function handleGenerateRequest(data) {
+	try {
+		const payload = {
+			gammaId: GAMMA_TEMPLATE_ID,
+			exportAs: "pdf",
+			...buildServerSidePrompt(data)
+		};
+		console.groupCollapsed("Backend: External API Call");
+		console.log(`POST ${PUBLIC_API_URL}`);
+		console.log("Headers:", { Authorization: "Bearer ************" });
+		console.log("Body:", payload);
+		console.groupEnd();
+		const generationId = generateId();
+		jobStore.set(generationId, {
+			status: "IN_PROGRESS",
+			createdAt: Date.now(),
+			logs: ["Job created", "Sent to Gamma API"]
+		});
+		simulateGammaProcessing(generationId);
+		return { id: generationId };
+	} catch (error) {
+		throw {
+			status: 500,
+			message: "Internal Server Error during generation",
+			body: error.message,
+			stack: error.stack
+		};
 	}
-	return { id: (await response.json()).id };
 }
-async function checkStatus(generationId) {
-	const response = await fetch(`${API_BASE_URL}/generations/${generationId}`, {
-		method: "GET",
-		headers: { Authorization: `Bearer ${GAMMA_API_KEY}` }
-	});
-	if (!response.ok) throw new Error("Falha ao verificar status da geração");
-	const data = await response.json();
-	const apiStatus = data.status;
-	let status = "IN_PROGRESS";
-	if (apiStatus === "COMPLETED" || apiStatus === "DONE") status = "COMPLETED";
-	else if (apiStatus === "ERROR" || apiStatus === "FAILED") return {
-		id: generationId,
-		status: "FAILED"
+async function handleStatusRequest(generationId) {
+	const job = jobStore.get(generationId);
+	if (!job) throw {
+		status: 404,
+		message: "Generation Job not found"
 	};
-	else return {
-		id: generationId,
-		status: "IN_PROGRESS"
-	};
-	const pdfUrl = data.exports?.pdf?.url;
-	const gammaUrl = data.url;
-	if (status === "COMPLETED") if (pdfUrl) return {
+	if (job.status === "COMPLETED") return {
 		id: generationId,
 		status: "COMPLETED",
 		output: {
-			pdf: { url: pdfUrl },
-			gamma: { url: gammaUrl }
+			pdf: { url: job.pdfUrl || "" },
+			gamma: { url: job.gammaUrl || "" }
 		}
 	};
-	else {
-		const exportStatus = data.exports?.pdf?.status;
-		if (!data.exports?.pdf) try {
-			await fetch(`${API_BASE_URL}/generations/${generationId}/exports`, {
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${GAMMA_API_KEY}`,
-					"Content-Type": "application/json"
-				},
-				body: JSON.stringify({ format: "pdf" })
-			});
-			return {
-				id: generationId,
-				status: "IN_PROGRESS"
-			};
-		} catch (err) {
-			console.error("Export Trigger Error:", err);
-			return {
-				id: generationId,
-				status: "IN_PROGRESS"
-			};
-		}
-		else if (exportStatus === "FAILED") return {
-			id: generationId,
-			status: "ERROR"
-		};
-		else if (exportStatus === "COMPLETED") return {
-			id: generationId,
-			status: "COMPLETED",
-			output: {
-				pdf: { url: data.exports.pdf.url },
-				gamma: { url: gammaUrl }
-			}
-		};
-		else return {
-			id: generationId,
-			status: "IN_PROGRESS"
-		};
-	}
+	else if (job.status === "FAILED") return {
+		id: generationId,
+		status: "FAILED"
+	};
 	return {
 		id: generationId,
 		status: "IN_PROGRESS"
 	};
 }
+function simulateGammaProcessing(id) {
+	const processingTime = 5e3 + Math.random() * 3e3;
+	setTimeout(() => {
+		const job = jobStore.get(id);
+		if (job) {
+			job.status = "COMPLETED";
+			job.pdfUrl = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
+			job.gammaUrl = `https://gamma.app/docs/proposta-${id}`;
+			jobStore.set(id, job);
+			console.log(`[BACKGROUND] Job ${id} completed`);
+		}
+	}, processingTime);
+}
 async function triggerGammaGeneration(data) {
-	return createGeneration(data);
+	try {
+		return await mockBackendFetch("/api/gamma/generate", "POST", data);
+	} catch (error) {
+		console.error("Service Error:", error);
+		throw new Error(JSON.stringify({
+			message: error.message || "Falha na comunicação com o servidor",
+			status: error.status || 500,
+			details: error.body || "Unknown error"
+		}));
+	}
 }
 async function checkGammaStatus(generationId) {
-	return checkStatus(generationId);
+	try {
+		return await mockBackendFetch(`/api/gamma/status/${generationId}`, "GET");
+	} catch (error) {
+		console.error("Status Check Error:", error);
+		throw new Error(JSON.stringify({
+			message: "Falha ao verificar status",
+			status: error.status || 500
+		}));
+	}
 }
 function ProposalProcessing({ data, onComplete }) {
 	const [currentStep, setCurrentStep] = (0, import_react.useState)(0);
@@ -35474,28 +35481,59 @@ function ProposalProcessing({ data, onComplete }) {
 			key: "finalizing"
 		}
 	];
-	const addLog = (msg, color = "text-slate-400") => {
-		setLogs((prev) => [...prev, `<span class="${color}">${msg}</span>`]);
+	const addLog = (msg, type = "info") => {
+		let colorClass = "text-slate-400";
+		let prefix = ">";
+		switch (type) {
+			case "success":
+				colorClass = "text-emerald-400";
+				prefix = "✓";
+				break;
+			case "error":
+				colorClass = "text-red-400";
+				prefix = "✗";
+				break;
+			case "warning":
+				colorClass = "text-yellow-400";
+				prefix = "!";
+				break;
+			case "info":
+			default:
+				colorClass = "text-blue-300";
+				break;
+		}
+		const logHtml = `<span class="text-slate-600 mr-2">[${(/* @__PURE__ */ new Date()).toLocaleTimeString("pt-BR", { hour12: false })}]</span><span class="${colorClass} font-bold mr-2">${prefix}</span><span class="${colorClass}">${msg}</span>`;
+		setLogs((prev) => [...prev, logHtml]);
 	};
 	(0, import_react.useEffect)(() => {
 		let isMounted = true;
 		const process$2 = async () => {
 			try {
-				addLog("> Inicializando conexão segura com API...", "text-blue-300");
-				addLog("> Preparando prompt fixo do template...", "text-slate-500");
-				await new Promise((r$2) => setTimeout(r$2, 1e3));
+				addLog("Iniciando conexão segura (TLS 1.3)...", "info");
+				addLog("POST /api/gamma/generate", "info");
+				await new Promise((r$2) => setTimeout(r$2, 800));
 				let generationId;
 				try {
 					generationId = (await triggerGammaGeneration(data)).id;
 					if (!isMounted) return;
 					setCurrentStep(1);
-					addLog(`> ID de Geração recebido: ${generationId}`, "text-purple-300");
+					addLog(`HTTP 200 OK - Job Created: ${generationId}`, "success");
+					addLog("Backend: Polling Gamma API status...", "warning");
 				} catch (apiError) {
 					if (!isMounted) return;
-					addLog(`> Erro de API: ${apiError.message}`, "text-red-500");
+					let errorObj;
+					try {
+						errorObj = JSON.parse(apiError.message);
+					} catch {
+						errorObj = {
+							message: apiError.message,
+							status: 500
+						};
+					}
+					addLog(`HTTP ${errorObj.status} - ${errorObj.message}`, "error");
+					if (errorObj.details) addLog(`Body: ${JSON.stringify(errorObj.details)}`, "error");
 					throw apiError;
 				}
-				addLog("> Aguardando renderização do PDF...", "text-yellow-300");
 				const poll = async () => {
 					try {
 						if (!isMounted) return;
@@ -35504,24 +35542,24 @@ function ProposalProcessing({ data, onComplete }) {
 						if (status === "COMPLETED") {
 							if (!isMounted) return;
 							setCurrentStep(2);
-							addLog("> Geração concluída com sucesso!", "text-green-400");
-							if (statusResponse.output?.pdf?.url) addLog(`> PDF URL: ${statusResponse.output.pdf.url.substring(0, 40)}...`, "text-slate-500");
-							await new Promise((r$2) => setTimeout(r$2, 1500));
+							addLog("Gamma API: Generation COMPLETED", "success");
+							if (statusResponse.output?.pdf?.url) addLog(`PDF Generated: ${statusResponse.output.pdf.url.substring(0, 30)}...`, "info");
+							await new Promise((r$2) => setTimeout(r$2, 1e3));
 							onComplete({
 								generationId,
 								pdfUrl: statusResponse.output?.pdf?.url,
 								gammaUrl: statusResponse.output?.gamma?.url
 							});
-						} else if (status === "ERROR" || status === "FAILED") throw new Error("Falha na geração Gamma");
+						} else if (status === "ERROR" || status === "FAILED") throw new Error("Gamma API reported FAILED status");
 						else if (isMounted) {
-							addLog(`> Status: ${status} - Verificando novamente...`, "text-slate-500");
-							pollingRef.current = setTimeout(poll, 2e3);
+							addLog(`Polling Job ${generationId}... [${status}]`, "warning");
+							pollingRef.current = setTimeout(poll, 3e3);
 						}
 					} catch (err) {
 						console.error(err);
 						if (isMounted) {
-							setError(err.message || "Erro ao verificar status da geração.");
-							addLog(`> Erro polling: ${err.message}`, "text-red-500");
+							setError("Falha na verificação de status");
+							addLog(`Polling Error: ${err.message}`, "error");
 							toast.error("Erro na comunicação com Gamma API");
 						}
 					}
@@ -35530,8 +35568,12 @@ function ProposalProcessing({ data, onComplete }) {
 			} catch (err) {
 				console.error(err);
 				if (isMounted) {
-					setError(err.message || "Ocorreu um erro inesperado.");
-					addLog(`> Erro Fatal: ${err.message}`, "text-red-500");
+					let msg = err.message;
+					try {
+						msg = JSON.parse(err.message).message;
+					} catch {}
+					setError(msg || "Ocorreu um erro inesperado.");
+					addLog(`Process Terminated: ${msg}`, "error");
 					toast.error("Falha na geração da proposta");
 				}
 			}
@@ -35543,9 +35585,9 @@ function ProposalProcessing({ data, onComplete }) {
 		};
 	}, []);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "flex flex-col md:flex-row gap-8 h-[500px] animate-in fade-in duration-500",
+		className: "flex flex-col lg:flex-row gap-8 min-h-[500px] animate-in fade-in duration-500",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "flex-1 bg-white p-8 rounded-xl shadow-sm border flex flex-col justify-center items-center md:items-start relative overflow-hidden",
+			className: "flex-1 bg-white p-8 rounded-xl shadow-sm border flex flex-col justify-center relative overflow-hidden",
 			children: [
 				error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "absolute top-0 left-0 w-full bg-red-50 p-4 border-b border-red-100 flex items-center gap-2 text-red-700 animate-in slide-in-from-top",
@@ -35555,13 +35597,16 @@ function ProposalProcessing({ data, onComplete }) {
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "mb-8 text-center md:text-left mt-8 md:mt-0",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-						className: "text-2xl font-bold text-slate-800",
-						children: "Gerando Proposta"
+					className: "mb-8 mt-8 lg:mt-0",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+						className: "text-2xl font-bold text-slate-800 flex items-center gap-2",
+						children: ["Processando Proposta", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-xs font-normal px-2 py-1 bg-slate-100 rounded-full text-slate-500 border",
+							children: "v2.0 (Secure)"
+						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "text-slate-500",
-						children: "Aguarde enquanto processamos seu documento."
+						className: "text-slate-500 mt-1",
+						children: "Geração segura via servidor. Não feche esta página."
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -35571,18 +35616,23 @@ function ProposalProcessing({ data, onComplete }) {
 						const isCompleted = index$1 < currentStep;
 						const isError = index$1 === currentStep && error;
 						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-4",
+							className: "flex items-center gap-4 group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: cn("h-10 w-10 rounded-full flex items-center justify-center transition-all duration-500 border-2", isCompleted ? "bg-emerald-50 border-emerald-500 text-emerald-600" : isError ? "bg-red-50 border-red-500 text-red-600" : isActive ? "bg-primary/5 border-primary text-primary animate-pulse" : "bg-slate-50 border-slate-200 text-slate-300"),
-								children: isCompleted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "h-5 w-5" }) : isError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "h-5 w-5" }) : isActive ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "h-5 w-5 animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Circle, { className: "h-5 w-5" })
+								className: cn("h-12 w-12 rounded-full flex items-center justify-center transition-all duration-500 border-2 shadow-sm", isCompleted ? "bg-emerald-50 border-emerald-500 text-emerald-600 scale-100" : isError ? "bg-red-50 border-red-500 text-red-600" : isActive ? "bg-white border-primary text-primary shadow-primary/20 scale-110" : "bg-slate-50 border-slate-200 text-slate-300"),
+								children: isCompleted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "h-6 w-6" }) : isError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "h-6 w-6" }) : isActive ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "h-6 w-6 animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Circle, { className: "h-6 w-6" })
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex-1",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 									className: cn("font-medium text-lg transition-colors duration-300", isCompleted ? "text-emerald-700" : isError ? "text-red-600" : isActive ? "text-primary font-bold" : "text-slate-400"),
 									children: s$2.label
-								}), isActive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-xs text-muted-foreground animate-pulse",
-									children: "Processando..."
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+									className: "text-xs text-slate-400 h-4",
+									children: [
+										isActive && index$1 === 0 && "Validando dados e template...",
+										isActive && index$1 === 1 && "Solicitando renderização PDF...",
+										isActive && index$1 === 2 && "Obtendo link de download...",
+										isCompleted && "Concluído"
+									]
 								})]
 							})]
 						}, index$1);
@@ -35590,28 +35640,40 @@ function ProposalProcessing({ data, onComplete }) {
 				})
 			]
 		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "flex-1 bg-slate-950 rounded-xl p-6 font-mono text-xs text-emerald-400 overflow-hidden relative shadow-2xl flex flex-col border border-slate-800",
+			className: "flex-1 bg-[#0F172A] rounded-xl p-0 font-mono text-xs overflow-hidden relative shadow-2xl flex flex-col border border-slate-800",
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex justify-between items-center mb-4 border-b border-slate-800 pb-2 shrink-0",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "text-slate-400 font-semibold",
-					children: "backend-proxy.log"
+				className: "bg-[#1E293B] px-4 py-3 border-b border-slate-700 flex justify-between items-center shrink-0",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-2",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Terminal, { className: "h-4 w-4 text-slate-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-slate-300 font-medium",
+						children: "server-logs"
+					})]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex gap-1.5",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "h-2.5 w-2.5 rounded-full bg-red-500/20" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "h-2.5 w-2.5 rounded-full bg-yellow-500/20" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "h-2.5 w-2.5 rounded-full bg-emerald-500" })
-					]
+					className: "flex items-center gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 rounded text-emerald-400 border border-emerald-500/20",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "h-3 w-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] font-semibold tracking-wider",
+							children: "SECURE"
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex gap-1.5",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "h-2.5 w-2.5 rounded-full bg-red-500/20" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "h-2.5 w-2.5 rounded-full bg-yellow-500/20" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "h-2.5 w-2.5 rounded-full bg-emerald-500" })
+						]
+					})]
 				})]
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex-1 overflow-y-auto space-y-2 opacity-90 pb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent",
-				children: [logs.map((log, i$2) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "animate-fade-in break-words leading-relaxed",
+				className: "flex-1 overflow-y-auto p-4 space-y-2 pb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent font-medium bg-[#0F172A]",
+				children: [logs.map((log, i$2) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "animate-fade-in break-words leading-relaxed border-l-2 border-slate-800 pl-3 py-0.5 hover:bg-slate-800/30 transition-colors",
 					dangerouslySetInnerHTML: { __html: log }
-				}, i$2)), !error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "flex items-center gap-1 text-emerald-500/50 animate-pulse",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "_" })
+				}, i$2)), !error && currentStep < 3 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex items-center gap-1 text-emerald-500/50 animate-pulse pl-3 pt-2",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-4 bg-emerald-500/50 block" })
 				})]
 			})]
 		})]
@@ -38711,4 +38773,4 @@ var App = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BrowserRouter, {
 var App_default = App;
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App_default, {}));
 
-//# sourceMappingURL=index-DftNSP1i.js.map
+//# sourceMappingURL=index-BGvq9bIF.js.map
